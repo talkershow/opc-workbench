@@ -678,6 +678,10 @@ html[data-theme="light"] .toast { color: #fff; }
         <span id="syncDot" style="width:8px;height:8px;border-radius:50%;background:var(--muted);"></span>
         <span id="syncText">未连接</span>
       </div>
+      <div id="localIndicator" style="font-size:12px; color:var(--muted); display:flex; align-items:center; gap:4px; margin-right:8px; cursor:default;" title="本地文件存储状态">
+        <span id="localDot" style="width:8px;height:8px;border-radius:50%;background:var(--muted);"></span>
+        <span id="localText">检测中</span>
+      </div>
       <button class="btn btn-sm" id="syncBtn" onclick="manualSync()" title="同步到 GitHub">🔄 同步</button>
       <button class="btn btn-primary btn-sm" onclick="openTopicModal()">+ 新选题</button>
       <button class="btn btn-sm" onclick="openDataModal()">+ 记数据</button>
@@ -793,6 +797,7 @@ html[data-theme="light"] .toast { color: #fff; }
           </div>
           <div style="margin-left:auto;display:flex;gap:8px;">
             <button class="btn btn-sm" onclick="markAllRead()">✓ 全部已读</button>
+            <button class="btn btn-sm" onclick="syncAiHot(this)" style="background:var(--green);color:#fff;" title="拉取过去 24 小时 AI HOT 精选，合并到数据邮箱（自动去重）">🤖 同步 AI HOT</button>
             <button class="btn btn-primary btn-sm" onclick="openInboxAddModal()">+ 手动添加</button>
           </div>
         </div>

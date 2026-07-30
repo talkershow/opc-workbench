@@ -2,8 +2,69 @@
 (function() {
   'use strict';
 
-  // ========== 数据管理 ==========
+  // ========== 本地文件存储模块 ==========
+  var LocalStore = {
+    available: false,     // 本地服务器是否可用
+    initialized: false,
+    autoSaveTimer: null,
+    onLoadCallback: null,
+
+    // 检测本地服务器是否可用
+    check: function() {
+      return fetch('http://localhost:3456/api/health', { method: 'GET' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) { return data.ok === true; })
+        .catch(function() { return false; });
+    },
+
+    // 从本地文件加载数据
+    load: function() {
+      return fetch('http://localhost:3456/api/data', { method: 'GET' })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+          if (res.ok && res.data) return res.data;
+          return null;
+        })
+        .catch(function() { return null; });
+    },
+
+    // 保存数据到本地文件（防抖 2 秒）
+    save: function() {
+      var self = this;
+      if (this.autoSaveTimer) clearTimeout(this.autoSaveTimer);
+      this.autoSaveTimer = setTimeout(function() {
+        self._doSave();
+      }, 2000);
+    },
+
+    // 立即保存
+    _doSave: function() {
+      var payload = DB.collectData();
+      fetch('http://localhost:3456/api/data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      }).then(function(r) { return r.json(); })
+        .then(function(res) {
+          if (res.ok) {
+            if (typeof updateLocalStatus === 'function') updateLocalStatus('saved');
+          }
+        })
+        .catch(function() {
+          if (typeof updateLocalStatus === 'function') updateLocalStatus('error');
+        });
+    },
+
+    // 合并文件数据到内存
+    mergeFromFile: function(fileData) {
+      if (!fileData) return;
+      DB.restoreData(fileData);
+    }
+  };
+
+  // ========== 数据管理（统一存储） ==========
   var DB = {
+    version: 2,              // 数据版本号（用于迁移）
     topics: [],
     dataRecords: [],
     reviews: [],
@@ -11,28 +72,99 @@
     inboxItems: [],
     settings: { lastReviewWeek: '' },
 
+    // ---- 统一序列化：所有模块共用 ----
+    collectData: function() {
+      return {
+        version: this.version,
+        topics: this.topics,
+        dataRecords: this.dataRecords,
+        reviews: this.reviews,
+        dailyReviews: this.dailyReviews,
+        inboxItems: this.inboxItems,
+        settings: this.settings,
+        savedAt: new Date().toISOString()
+      };
+    },
+
+    // ---- 统一反序列化：所有模块共用 ----
+    restoreData: function(data) {
+      if (!data) return;
+      if (data.topics) this.topics = data.topics;
+      if (data.dataRecords) this.dataRecords = data.dataRecords;
+      if (data.reviews) this.reviews = data.reviews;
+      if (data.dailyReviews) this.dailyReviews = data.dailyReviews;
+      if (data.inboxItems) this.inboxItems = data.inboxItems;
+      if (data.settings) this.settings = Object.assign({ lastReviewWeek: '' }, data.settings);
+      this.saveToStorage();
+    },
+
+    // ---- 加载：统一从单个 key 读取，兼容旧版多 key ----
     load: function() {
       try {
-        this.topics = JSON.parse(localStorage.getItem('opc_topics') || '[]');
-        this.dataRecords = JSON.parse(localStorage.getItem('opc_data') || '[]');
-        this.reviews = JSON.parse(localStorage.getItem('opc_reviews') || '[]');
-        this.dailyReviews = JSON.parse(localStorage.getItem('opc_daily') || '[]');
-        this.inboxItems = JSON.parse(localStorage.getItem('opc_inbox') || '[]');
-        this.settings = JSON.parse(localStorage.getItem('opc_settings') || '{}');
-        if (!this.settings.lastReviewWeek) this.settings.lastReviewWeek = '';
+        // 优先读取统一格式
+        var unified = localStorage.getItem('opc_database');
+        if (unified) {
+          var data = JSON.parse(unified);
+          this.restoreData(data);
+          this.version = data.version || 1;
+          return;
+        }
+        // 兼容旧版：从分散的 key 迁移
+        this._migrateFromLegacy();
       } catch(e) {
         console.warn('数据加载失败', e);
       }
     },
 
-    save: function(type) {
-      if (type === 'topics' || !type) localStorage.setItem('opc_topics', JSON.stringify(this.topics));
-      if (type === 'data' || !type) localStorage.setItem('opc_data', JSON.stringify(this.dataRecords));
-      if (type === 'reviews' || !type) localStorage.setItem('opc_reviews', JSON.stringify(this.reviews));
-      if (type === 'daily' || !type) localStorage.setItem('opc_daily', JSON.stringify(this.dailyReviews));
-      if (type === 'inbox' || !type) localStorage.setItem('opc_inbox', JSON.stringify(this.inboxItems));
-      if (!type) localStorage.setItem('opc_settings', JSON.stringify(this.settings));
-      // 触发自动同步
+    // 旧格式迁移（6 个分散 key → 1 个统一 key）
+    _migrateFromLegacy: function() {
+      var oldKeys = {
+        'opc_topics': 'topics',
+        'opc_data': 'dataRecords',
+        'opc_reviews': 'reviews',
+        'opc_daily': 'dailyReviews',
+        'opc_inbox': 'inboxItems',
+        'opc_settings': 'settings'
+      };
+      var hasLegacy = false;
+      var data = { version: 2, savedAt: new Date().toISOString() };
+      for (var key in oldKeys) {
+        var raw = localStorage.getItem(key);
+        if (raw) {
+          hasLegacy = true;
+          data[oldKeys[key]] = JSON.parse(raw);
+        }
+      }
+      if (hasLegacy) {
+        this.restoreData(data);
+        // 清理旧 key
+        for (var k in oldKeys) localStorage.removeItem(k);
+        console.log('数据已从旧格式迁移到统一存储');
+      }
+    },
+
+    // ---- 保存到 localStorage（统一单个 key） ----
+    saveToStorage: function() {
+      try {
+        localStorage.setItem('opc_database', JSON.stringify(this.collectData()));
+      } catch(e) {
+        console.warn('localStorage 写入失败', e);
+      }
+    },
+
+    // 兼容旧接口
+    saveToLocalStorage: function() { this.saveToStorage(); },
+
+    // ---- 统一保存入口 ----
+    save: function() {
+      // 写入 localStorage（单个 key）
+      this.saveToStorage();
+      // 本地文件存储（如果服务器可用）
+      if (LocalStore.available) {
+        LocalStore.save();
+        if (typeof updateLocalStatus === 'function') updateLocalStatus('saving');
+      }
+      // GitHub 云同步
       if (typeof Sync !== 'undefined') Sync.scheduleAutoSync();
     },
 
@@ -40,43 +172,49 @@
       return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
     },
 
+    // 规范化：确保每条记录有必需字段
+    _normalize: function(item, fields) {
+      var now = new Date().toISOString();
+      if (!item.id) item.id = this.genId();
+      if (!item.createdAt) item.createdAt = now;
+      item.updatedAt = now;
+      return item;
+    },
+
     addTopic: function(t) {
-      t.id = this.genId();
-      t.createdAt = new Date().toISOString();
+      this._normalize(t);
       this.topics.unshift(t);
-      this.save('topics');
+      this.save();
       return t;
     },
 
     updateTopic: function(id, updates) {
       var t = this.topics.find(function(x) { return x.id === id; });
-      if (t) { Object.assign(t, updates); this.save('topics'); }
+      if (t) { Object.assign(t, updates); t.updatedAt = new Date().toISOString(); this.save(); }
       return t;
     },
 
     deleteTopic: function(id) {
       this.topics = this.topics.filter(function(x) { return x.id !== id; });
-      this.save('topics');
+      this.save();
     },
 
     addData: function(d) {
-      d.id = this.genId();
-      d.createdAt = new Date().toISOString();
+      this._normalize(d);
       this.dataRecords.unshift(d);
-      this.save('data');
+      this.save();
       return d;
     },
 
     deleteData: function(id) {
       this.dataRecords = this.dataRecords.filter(function(x) { return x.id !== id; });
-      this.save('data');
+      this.save();
     },
 
     addReview: function(r) {
-      r.id = this.genId();
-      r.createdAt = new Date().toISOString();
+      this._normalize(r);
       this.reviews.unshift(r);
-      this.save('reviews');
+      this.save();
     }
   };
 
@@ -107,17 +245,9 @@
       return this.config.username && this.config.repo && this.config.token;
     },
 
-    // 收集所有数据
+    // 收集所有数据（统一使用 DB.collectData）
     collectData: function() {
-      return {
-        topics: DB.topics,
-        dataRecords: DB.dataRecords,
-        reviews: DB.reviews,
-        dailyReviews: DB.dailyReviews,
-        inboxItems: DB.inboxItems,
-        settings: DB.settings,
-        exportedAt: new Date().toISOString()
-      };
+      return DB.collectData();
     },
 
     // Base64 编解码（UTF-8 安全）
@@ -206,14 +336,8 @@
         self.fileSha = fileInfo.sha;
         var data = JSON.parse(self.decode(fileInfo.content));
 
-        // 合并到本地
-        if (data.topics) DB.topics = data.topics;
-        if (data.dataRecords) DB.dataRecords = data.dataRecords;
-        if (data.reviews) DB.reviews = data.reviews;
-        if (data.dailyReviews) DB.dailyReviews = data.dailyReviews;
-        if (data.inboxItems) DB.inboxItems = data.inboxItems;
-        if (data.settings) DB.settings = data.settings;
-        DB.save();
+        // 统一使用 restoreData 恢复
+        DB.restoreData(data);
 
         self.lastSyncAt = new Date().toISOString();
         localStorage.setItem('opc_sync_last', self.lastSyncAt);
@@ -468,7 +592,12 @@
     var fStatus = $('inboxFilterStatus').value;
 
     if (fCat) items = items.filter(function(i) { return i.category === fCat; });
-    if (fStatus) items = items.filter(function(i) { return i.status === fStatus; });
+    // 筛选逻辑：starred 筛选看独立字段，其他看 status
+    if (fStatus === 'starred') {
+      items = items.filter(function(i) { return i.starred; });
+    } else if (fStatus) {
+      items = items.filter(function(i) { return i.status === fStatus; });
+    }
 
     // 按时间倒序
     items.sort(function(a, b) { return new Date(b.collectedAt || 0) - new Date(a.collectedAt || 0); });
@@ -482,11 +611,13 @@
     var html = '';
     items.forEach(function(item) {
       var config = INBOX_CATEGORY_CONFIG[item.category] || { icon: '📌', color: 'var(--muted)' };
-      var statusBadge = '';
-      if (item.status === 'unread') statusBadge = '<span class="tag tag-accent2">未读</span>';
-      else if (item.status === 'starred') statusBadge = '<span class="tag tag-yellow">⭐ 已收藏</span>';
-      else if (item.status === 'converted') statusBadge = '<span class="tag tag-green">✓ 已转选题</span>';
-      else if (item.status === 'archived') statusBadge = '<span class="tag tag-muted">已归档</span>';
+
+      // 状态徽章（starred 独立显示，不占用 status）
+      var badges = '';
+      if (item.status === 'unread') badges += '<span class="tag tag-accent2">未读</span>';
+      else if (item.status === 'converted') badges += '<span class="tag tag-green">✓ 已转选题</span>';
+      else if (item.status === 'archived') badges += '<span class="tag tag-muted">已归档</span>';
+      if (item.starred) badges += '<span class="tag tag-yellow">⭐</span>';
 
       var heatStr = item.heat ? '<span style="font-size:11px;color:var(--muted);">🔥 ' + fmtNum(item.heat) + '</span>' : '';
       var dateStr = item.collectedAt ? new Date(item.collectedAt).toLocaleString('zh-CN', {month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
@@ -500,7 +631,7 @@
             '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap;">' +
               '<span style="font-weight:700;font-size:14px;">' + (item.title || '—') + '</span>' +
               '<span class="tag tag-muted" style="font-size:10px;">' + (item.category || '未分类') + '</span>' +
-              statusBadge +
+              badges +
               heatStr +
             '</div>';
 
@@ -519,13 +650,26 @@
       }
 
       html += '</div>' +
-          // 右：操作按钮
-          '<div style="flex-shrink:0;display:flex;flex-direction:column;gap:4px;">' +
-            '<button class="btn btn-primary btn-sm" onclick="convertInboxToTopic(\'' + item.id + '\')" title="转为选题"' +
-              (item.status === 'converted' ? ' disabled style="opacity:0.5;"' : '') + '>➕ 选题</button>' +
-            '<button class="btn btn-sm" onclick="toggleInboxStar(\'' + item.id + '\')" title="收藏">' + (item.status === 'starred' ? '⭐' : '☆') + '</button>' +
-            '<button class="btn btn-sm btn-danger" onclick="archiveInboxItem(\'' + item.id + '\')" title="归档">📦</button>' +
-          '</div>' +
+          // 右：操作按钮（根据状态动态显示）
+          '<div style="flex-shrink:0;display:flex;flex-direction:column;gap:4px;">';
+
+      if (item.status === 'converted') {
+        // 已转选题：显示跳转编辑 + 撤销
+        if (item.topicId) {
+          html += '<button class="btn btn-sm" onclick="jumpToTopic(\'' + item.topicId + '\')" title="跳转到选题" style="font-size:11px;">✏️ 编辑选题</button>';
+        }
+        html += '<button class="btn btn-sm btn-danger" onclick="undoConvert(\'' + item.id + '\')" title="撤销转选题" style="font-size:11px;">↩️ 撤销</button>';
+      } else if (item.status === 'archived') {
+        // 已归档：显示恢复
+        html += '<button class="btn btn-sm" onclick="restoreInboxItem(\'' + item.id + '\')" title="恢复" style="font-size:11px;">♻️ 恢复</button>';
+      } else {
+        // 正常状态：转选题 + 收藏 + 归档
+        html += '<button class="btn btn-primary btn-sm" onclick="convertInboxToTopic(\'' + item.id + '\')" title="转为选题">➕ 选题</button>';
+        html += '<button class="btn btn-sm" onclick="toggleInboxStar(\'' + item.id + '\')" title="收藏">' + (item.starred ? '⭐' : '☆') + '</button>';
+        html += '<button class="btn btn-sm btn-danger" onclick="archiveInboxItem(\'' + item.id + '\')" title="归档">📦</button>';
+      }
+
+      html += '</div>' +
         '</div>' +
       '</div>';
     });
@@ -569,6 +713,64 @@
     showToast('已添加到数据邮箱');
     closeModal('inboxAddModal');
     renderInbox();
+  }
+
+  // 同步 AI HOT 精选到数据邮箱（合并去重，不覆盖现有数据）
+  // 数据源：aihot.virxact.com 公开匿名 v1 API（已开启 CORS，浏览器可直接跨域请求）
+  function syncAiHot(btn) {
+    if (window._aihotSyncing) { showToast('正在同步，请稍候'); return; }
+    window._aihotSyncing = true;
+    var origText = btn ? btn.innerHTML : '';
+    if (btn) { btn.disabled = true; btn.innerHTML = '⏳ 同步中…'; }
+    showToast('正在拉取 AI HOT 精选…');
+    fetch('https://aihot.virxact.com/api/v1/items?mode=selected&window=24h&limit=50', {
+      headers: { 'Accept': 'application/json' }
+    }).then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    }).then(function (data) {
+      var items = (data && data.items) || [];
+      if (!items.length) { throw new Error('AI HOT 暂无数据'); }
+      // 去重：按 AI HOT 阅读页 url 或标题，避免重复导入
+      var existUrl = {}, existTitle = {};
+      DB.inboxItems.forEach(function (i) {
+        if (i.url) existUrl[i.url] = 1;
+        if (i.title) existTitle[i.title] = 1;
+      });
+      // AI HOT category → 数据邮箱 category 映射
+      var catMap = { 'ai-models': 'AI工具', 'ai-products': 'AI工具', 'industry': '行业动态', 'paper': 'AI工具', 'tip': 'AI工具' };
+      var formMap = { 'ai-models': '深度图文', 'ai-products': '中长视频', 'industry': '深度图文', 'paper': '深度图文', 'tip': '短视频' };
+      var added = 0, skipped = 0;
+      items.forEach(function (it) {
+        var links = it.links || {};
+        var url = links.aihot || links.original || '';
+        var title = it.title || '';
+        if ((url && existUrl[url]) || (title && existTitle[title])) { skipped++; return; }
+        var item = {
+          id: DB.genId(),
+          title: title,
+          category: catMap[it.category] || 'AI工具',
+          source: 'AI HOT' + (it.source && it.source.name ? ' · ' + it.source.name : ''),
+          heat: it.score || 0,
+          suggestForm: formMap[it.category] || '深度图文',
+          summary: it.summary || '',
+          url: url,
+          status: 'unread',
+          collectedAt: it.discoveredAt || it.publishedAt || new Date().toISOString()
+        };
+        if (url) existUrl[url] = 1;
+        if (title) existTitle[title] = 1;
+        DB.inboxItems.unshift(item);
+        added++;
+      });
+      if (added > 0) { DB.save('inbox'); renderInbox(); }
+      showToast('AI HOT 同步完成：新增 ' + added + ' 条' + (skipped > 0 ? '，跳过已存在 ' + skipped + ' 条' : ''));
+    }).catch(function (err) {
+      showToast('AI HOT 同步失败：' + (err && err.message ? err.message : err));
+    }).then(function () {
+      window._aihotSyncing = false;
+      if (btn) { btn.disabled = false; btn.innerHTML = origText; }
+    });
   }
 
   function convertInboxToTopic(id) {
@@ -622,8 +824,8 @@
       return;
     }
 
-    // 添加到选题库
-    DB.addTopic({
+    // 添加到选题库（带双向关联 + 原始信息保留）
+    var newTopic = DB.addTopic({
       title: $('convert-title').value.trim() || item.title,
       source: item.source || '数据邮箱',
       form: $('convert-form').value,
@@ -631,11 +833,19 @@
       difficulty: 3, match: 3,
       platforms: platforms.join('/'),
       status: $('convert-status').value,
-      note: $('convert-note').value.trim()
+      note: $('convert-note').value.trim(),
+      fromInboxId: item.id,           // 选题 → 邮箱的关联
+      fromInboxMeta: {                // 保留原始信息（热度/分类/摘要）
+        category: item.category,
+        heat: item.heat,
+        summary: item.summary,
+        suggestForm: item.suggestForm
+      }
     });
 
-    // 标记为已转选题
+    // 邮箱标记为已转选题，保存关联的选题 ID
     item.status = 'converted';
+    item.topicId = newTopic.id;       // 邮箱 → 选题的关联
     DB.save('inbox');
 
     showToast('已转为选题：' + ($('convert-title').value.trim() || item.title));
@@ -647,7 +857,8 @@
   function toggleInboxStar(id) {
     var item = DB.inboxItems.find(function(i) { return i.id === id; });
     if (!item) return;
-    item.status = item.status === 'starred' ? 'unread' : 'starred';
+    // 收藏改为独立字段，不影响 status
+    item.starred = !item.starred;
     DB.save('inbox');
     renderInbox();
   }
@@ -681,6 +892,44 @@
     DB.save('inbox');
     showToast('已全部标记为已读');
     renderInbox();
+  }
+
+  // 撤销转选题：删除关联的选题，恢复邮箱条目为已读
+  function undoConvert(id) {
+    var item = DB.inboxItems.find(function(i) { return i.id === id; });
+    if (!item || !item.topicId) {
+      showToast('未找到关联选题');
+      return;
+    }
+
+    // 删除选题库中的关联选题
+    DB.deleteTopic(item.topicId);
+    // 恢复邮箱状态
+    item.status = 'read';
+    delete item.topicId;
+    DB.save('inbox');
+
+    showToast('已撤销，选题已删除');
+    renderInbox();
+    updateBadge();
+  }
+
+  // 恢复归档
+  function restoreInboxItem(id) {
+    var item = DB.inboxItems.find(function(i) { return i.id === id; });
+    if (!item) return;
+    item.status = 'read';
+    DB.save('inbox');
+    showToast('已恢复');
+    renderInbox();
+  }
+
+  // 从邮箱跳转到选题看板
+  function jumpToTopic(topicId) {
+    navigate('topics');
+    setTimeout(function() {
+      editTopic(topicId);
+    }, 200);
   }
 
   // ========== 选题看板 ==========
@@ -1163,6 +1412,17 @@
     }
 
     // 第二次点击：执行删除
+    // 联动：如果选题来自数据邮箱，恢复邮箱条目状态
+    var topic = DB.topics.find(function(t) { return t.id === id; });
+    if (topic && topic.fromInboxId) {
+      var inboxItem = DB.inboxItems.find(function(i) { return i.id === topic.fromInboxId; });
+      if (inboxItem) {
+        inboxItem.status = 'read';       // 恢复为已读（而非 unread，保留已查看记录）
+        delete inboxItem.topicId;        // 清除关联
+        DB.save('inbox');
+      }
+    }
+
     DB.deleteTopic(id);
     delete pendingDelete[id];
     showToast('已删除');
@@ -1837,15 +2097,7 @@
 
   // ========== 导入导出 ==========
   function exportData() {
-    var allData = {
-      topics: DB.topics,
-      dataRecords: DB.dataRecords,
-      reviews: DB.reviews,
-      dailyReviews: DB.dailyReviews,
-        inboxItems: DB.inboxItems,
-      settings: DB.settings,
-      exportDate: new Date().toISOString()
-    };
+    var allData = DB.collectData();
     var blob = new Blob([JSON.stringify(allData, null, 2)], { type: 'application/json' });
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
@@ -1867,13 +2119,7 @@
       reader.onload = function(ev) {
         try {
           var data = JSON.parse(ev.target.result);
-          if (data.topics) DB.topics = data.topics;
-          if (data.dataRecords) DB.dataRecords = data.dataRecords;
-          if (data.reviews) DB.reviews = data.reviews;
-          if (data.dailyReviews) DB.dailyReviews = data.dailyReviews;
-        if (data.inboxItems) DB.inboxItems = data.inboxItems;
-          if (data.settings) DB.settings = data.settings;
-          DB.save();
+          DB.restoreData(data);
           showToast('数据已导入');
           navigate('dashboard');
         } catch(err) {
@@ -1890,8 +2136,41 @@
   }
 
   // ========== 初始化 ==========
+  // 本地存储状态更新
+  function updateLocalStatus(state) {
+    var dot = document.getElementById('localDot');
+    var text = document.getElementById('localText');
+    if (!dot || !text) return;
+    if (state === 'saving') {
+      dot.style.background = 'var(--yellow)';
+      text.textContent = '保存中';
+    } else if (state === 'saved') {
+      dot.style.background = 'var(--green)';
+      text.textContent = '已保存';
+    } else if (state === 'error') {
+      dot.style.background = 'var(--red)';
+      text.textContent = '保存失败';
+    } else if (state === 'offline') {
+      dot.style.background = 'var(--muted)';
+      text.textContent = '浏览器模式';
+    }
+  }
+
   function init() {
     DB.load();
+
+    // 数据迁移：旧版 starred 是 status 值，新版改为独立字段
+    var migrated = false;
+    DB.inboxItems.forEach(function(i) {
+      if (i.status === 'starred') {
+        i.starred = true;
+        i.status = 'read';
+        migrated = true;
+      }
+      if (i.starred === undefined) i.starred = false;
+    });
+    if (migrated) DB.save('inbox');
+
     Sync.loadConfig();
     updateThemeControl();
 
@@ -1922,46 +2201,116 @@
     renderDashboard();
     renderToolkit(); // 预加载工具箱内容
 
-    // 首次使用时添加示例数据
-    if (DB.topics.length === 0 && DB.dataRecords.length === 0) {
-      addSampleData();
-    }
+    // 检测本地服务器并加载文件数据
+    LocalStore.check().then(function(ok) {
+      if (ok) {
+        LocalStore.available = true;
+        updateLocalStatus('saved');
+        // 从文件加载数据（文件优先）
+        LocalStore.load().then(function(fileData) {
+          if (fileData) {
+            LocalStore.mergeFromFile(fileData);
+            renderDashboard();
+            updateBadge();
+            showToast('已从本地文件加载数据');
+          } else {
+            // 文件无数据，首次初始化
+            if (DB.topics.length === 0 && DB.dataRecords.length === 0) {
+              addSampleData();
+            }
+          }
+          // 把当前数据写入文件（建立文件备份）
+          LocalStore.save();
+        });
+      } else {
+        updateLocalStatus('offline');
+        // 纯浏览器模式：首次使用添加示例数据
+        if (DB.topics.length === 0 && DB.dataRecords.length === 0) {
+          addSampleData();
+        }
+      }
+    });
   }
 
   function addSampleData() {
-    // ===== 选题（8 个，含六维评分和加工信息）=====
+    var now = new Date().toISOString();
+
+    // ===== 1. 先创建邮箱条目（20 条）=====
+    // 其中 3 条会转为选题（带双向关联）
+    var inboxConverted = []; // 存放要转选题的 inbox 条目
+    var inboxNormal = [];    // 普通邮箱条目
+
+    // --- 3 条将转为选题的邮箱条目 ---
+    var ib1 = { id: DB.genId(), title: 'AI 手机大战全面开打', category: '热点话题', source: '百度热搜', heat: 8950000, suggestForm: '短视频', summary: '各大手机厂商纷纷推出 AI 功能，可作为科技数码方向的深度评测选题', url: '', status: 'converted', starred: false, topicId: '', collectedAt: '2026-07-30T08:00:00Z', createdAt: now };
+    var ib2 = { id: DB.genId(), title: '某头部博主发布月入百万复盘视频', category: '竞品内容', source: 'B站', heat: 6090000, suggestForm: '中长视频', summary: '播放 600 万+，可拆解其内容结构和商业模式', url: '', status: 'converted', starred: false, topicId: '', collectedAt: '2026-07-29T12:00:00Z', createdAt: now };
+    var ib3 = { id: DB.genId(), title: 'B站 UP 主商业变现新政策解读', category: '平台政策', source: 'B站', heat: 0, suggestForm: '深度图文', summary: '创作激励规则调整，影响所有B站创作者收入', url: '', status: 'converted', starred: true, topicId: '', collectedAt: '2026-07-28T12:00:00Z', createdAt: now };
+    inboxConverted = [ib1, ib2, ib3];
+
+    // --- 17 条普通邮箱条目 ---
+    inboxNormal = [
+      { id: DB.genId(), title: '3万亿长鑫背后的清华圈子', category: '行业动态', source: '百度热搜', heat: 5670000, suggestForm: '深度图文', summary: '芯片产业背后的高校人脉网络，适合做商业分析类内容', url: '', status: 'unread', starred: false, collectedAt: '2026-07-30T08:00:00Z', createdAt: now },
+      { id: DB.genId(), title: '已经忘了微信是怎么取代QQ的了', category: '热点话题', source: '百度热搜', heat: 7230000, suggestForm: '短视频', summary: '引发大量讨论，适合做回忆杀/社交变迁类内容', url: '', status: 'read', starred: true, collectedAt: '2026-07-30T08:00:00Z', createdAt: now },
+      { id: DB.genId(), title: '抖音更新算法：优先推荐完播率高的内容', category: '平台政策', source: '官方公告', heat: 0, suggestForm: '短视频', summary: '完播率权重提升，需要调整内容节奏和开头 Hook 策略', url: '', status: 'read', starred: true, collectedAt: '2026-07-29T12:00:00Z', createdAt: now },
+      { id: DB.genId(), title: 'Claude 4 发布：多模态能力大幅提升', category: 'AI工具', source: '行业媒体', heat: 4500000, suggestForm: '深度图文', summary: '新模型可处理图片+文本，适合做工具实测', url: '', status: 'unread', starred: false, collectedAt: '2026-07-29T08:00:00Z', createdAt: now },
+      { id: DB.genId(), title: '广东人饭前烫碗的含金量还在上升', category: '热点话题', source: '百度热搜', heat: 3400000, suggestForm: '短视频', summary: '地域文化话题，互动性强，适合做轻松类内容', url: '', status: 'unread', starred: false, collectedAt: '2026-07-29T08:00:00Z', createdAt: now },
+      { id: DB.genId(), title: '某AI视频生成工具获得5000万融资', category: 'AI工具', source: '行业媒体', heat: 1200000, suggestForm: '中长视频', summary: '可做产品评测+行业分析，变现潜力高', url: '', status: 'unread', starred: false, collectedAt: '2026-07-28T08:00:00Z', createdAt: now },
+      { id: DB.genId(), title: '小红书推出「好物体验」新功能', category: '平台政策', source: '小红书', heat: 0, suggestForm: '小红书图文', summary: '新功能带来新的流量入口，适合做教程类内容', url: '', status: 'archived', starred: false, collectedAt: '2026-07-27T12:00:00Z', createdAt: now },
+      { id: DB.genId(), title: '某百万粉博主宣布停更', category: '竞品内容', source: '微博热搜', heat: 8900000, suggestForm: '深度图文', summary: '引发创作者群体讨论，适合做行业反思类内容', url: '', status: 'read', starred: true, collectedAt: '2026-07-27T08:00:00Z', createdAt: now },
+      { id: DB.genId(), title: '视频号打通微信生态全链路', category: '平台政策', source: '微信公开课', heat: 0, suggestForm: '深度图文', summary: '视频号可挂载小程序、跳转公众号，商业化路径更清晰', url: '', status: 'unread', starred: false, collectedAt: '2026-07-26T12:00:00Z', createdAt: now },
+      { id: DB.genId(), title: '演员修杰楷当庭认罪引发热议', category: '热点话题', source: '百度热搜', heat: 6800000, suggestForm: '短视频', summary: '明星话题热度高，可做观点评论类内容', url: '', status: 'unread', starred: false, collectedAt: '2026-07-30T08:00:00Z', createdAt: now },
+      { id: DB.genId(), title: '赵心童6比2淘汰丁俊晖', category: '热点话题', source: '百度热搜', heat: 5200000, suggestForm: '短视频', summary: '体育赛事热点，适合做速报+赛后分析', url: '', status: 'unread', starred: false, collectedAt: '2026-07-30T08:00:00Z', createdAt: now },
+      { id: DB.genId(), title: '某测评博主用AI做了整条视频获百万播放', category: '竞品内容', source: 'B站', heat: 2800000, suggestForm: '中长视频', summary: 'AI生成内容案例，可拆解其工作流并复刻', url: '', status: 'unread', starred: false, collectedAt: '2026-07-28T12:00:00Z', createdAt: now },
+      { id: DB.genId(), title: 'GPT-5 内测曝光：推理能力提升10倍', category: 'AI工具', source: '推特', heat: 9800000, suggestForm: '深度图文', summary: '重磅AI新闻，第一时间做解读内容流量极大', url: '', status: 'read', starred: true, collectedAt: '2026-07-30T12:00:00Z', createdAt: now },
+      { id: DB.genId(), title: '三伏天公园又现赤裸晒背', category: '热点话题', source: '百度热搜', heat: 2100000, suggestForm: '短视频', summary: '养生话题自带争议，评论区容易爆', url: '', status: 'unread', starred: false, collectedAt: '2026-07-29T08:00:00Z', createdAt: now },
+      { id: DB.genId(), title: '某知识区UP主用Notion搭建内容数据库爆火', category: '竞品内容', source: 'B站', heat: 1500000, suggestForm: '中长视频', summary: '工具教程类内容，可直接对标做同类选题', url: '', status: 'unread', starred: false, collectedAt: '2026-07-27T12:00:00Z', createdAt: now },
+      { id: DB.genId(), title: 'YouTube Shorts 分成计划扩大到所有创作者', category: '平台政策', source: 'YouTube官方', heat: 0, suggestForm: '短视频', summary: '变现门槛降低，做YouTube短视频的时机到了', url: '', status: 'read', starred: true, collectedAt: '2026-07-26T08:00:00Z', createdAt: now },
+      { id: DB.genId(), title: '某小红书博主一条图文带货10万+', category: '竞品内容', source: '小红书', heat: 3200000, suggestForm: '小红书图文', summary: '拆解其选品和文案策略，适合做变现复盘', url: '', status: 'unread', starred: false, collectedAt: '2026-07-25T12:00:00Z', createdAt: now }
+    ];
+
+    // ===== 2. 创建选题（8 个），其中 3 个来自邮箱（双向关联）=====
+
+    // 选题 1（来自邮箱 ib1：AI 手机大战）→ 已发布，有数据记录
+    var t1 = DB.addTopic({
+      title: 'AI 手机大战全面开打', source: '百度热搜', form: '短视频',
+      traffic: 5, difficulty: 4, match: 5, timeliness: 4, monetization: 5, reuse: 5,
+      platforms: '抖音/视频号', status: '已发布', note: '本周重点',
+      fromInboxId: ib1.id, fromInboxMeta: { category: ib1.category, heat: ib1.heat, summary: ib1.summary, suggestForm: ib1.suggestForm },
+      processing: { role: 'parent', status: 'done', adaptations: [{platform:'抖音',status:'done'},{platform:'视频号',status:'done'}], notes: '热点选题，已发布' }
+    });
+    ib1.topicId = t1.id;
+
+    // 选题 2（来自邮箱 ib2：月入百万复盘）→ 已发布，有数据记录
+    var t2 = DB.addTopic({
+      title: '某头部博主月入百万复盘拆解', source: 'B站', form: '中长视频',
+      traffic: 5, difficulty: 3, match: 4, timeliness: 5, monetization: 5, reuse: 4,
+      platforms: 'B站', status: '已发布', note: '竞品拆解类',
+      fromInboxId: ib2.id, fromInboxMeta: { category: ib2.category, heat: ib2.heat, summary: ib2.summary, suggestForm: ib2.suggestForm },
+      processing: { role: 'parent', status: 'done', adaptations: [{platform:'B站',status:'done'}], notes: '竞品分析' }
+    });
+    ib2.topicId = t2.id;
+
+    // 选题 3（来自邮箱 ib3：B站变现政策）→ 创作中
+    var t3 = DB.addTopic({
+      title: 'B站 UP 主商业变现新政策深度解读', source: 'B站', form: '深度图文',
+      traffic: 4, difficulty: 3, match: 5, timeliness: 3, monetization: 4, reuse: 4,
+      platforms: '公众号/B站', status: '创作中', note: '需要调研数据',
+      fromInboxId: ib3.id, fromInboxMeta: { category: ib3.category, heat: ib3.heat, summary: ib3.summary, suggestForm: ib3.suggestForm },
+      processing: { role: 'parent', status: 'processing', adaptations: [{platform:'公众号',status:'processing'}], notes: '正在收集政策细节' }
+    });
+    ib3.topicId = t3.id;
+
+    // 选题 4-8（独立选题，非邮箱来源）
     DB.addTopic({
       title: 'AI 工具实测：5 款提效 300% 的神器', source: '评论区高频问题', form: '中长视频',
       traffic: 5, difficulty: 4, match: 5, timeliness: 4, monetization: 5, reuse: 5,
       platforms: 'B站/YouTube', status: '已发布', note: '本周重点',
-      processing: { role: 'parent', status: 'done', adaptations: [
-        {platform:'B站',status:'done'},{platform:'YouTube',status:'done'},{platform:'公众号',status:'done'},
-        {platform:'抖音',status:'done'},{platform:'小红书',status:'done'}
-      ], notes: '母内容为B站长视频，已适配全平台' }
+      processing: { role: 'parent', status: 'done', adaptations: [{platform:'B站',status:'done'},{platform:'YouTube',status:'done'},{platform:'公众号',status:'done'},{platform:'抖音',status:'done'},{platform:'小红书',status:'done'}], notes: '母内容为B站长视频，已适配全平台' }
     });
     DB.addTopic({
       title: '新手做自媒体最容易踩的 7 个坑', source: '个人经验总结', form: '深度图文',
       traffic: 4, difficulty: 5, match: 4, timeliness: 5, monetization: 2, reuse: 4,
       platforms: '公众号', status: '已发布', note: '',
-      processing: { role: 'parent', status: 'done', adaptations: [
-        {platform:'公众号',status:'done'},{platform:'小红书',status:'done'},{platform:'视频号',status:'done'}
-      ], notes: '公众号深度文为母内容' }
-    });
-    DB.addTopic({
-      title: '为什么 90% 的人做副业都失败了？', source: '知乎热榜', form: '短视频',
-      traffic: 5, difficulty: 5, match: 3, timeliness: 2, monetization: 3, reuse: 3,
-      platforms: '抖音/视频号', status: '已发布', note: '争议性话题',
-      processing: { role: 'parent', status: 'done', adaptations: [
-        {platform:'抖音',status:'done'},{platform:'视频号',status:'done'},{platform:'小红书',status:'processing'}
-      ], notes: '争议性强，评论区活跃' }
-    });
-    DB.addTopic({
-      title: '2026 年自媒体还能做吗？深度数据分析', source: '行业报告', form: '深度图文',
-      traffic: 4, difficulty: 3, match: 5, timeliness: 3, monetization: 4, reuse: 4,
-      platforms: '公众号/B站', status: '创作中', note: '需要调研数据',
-      processing: { role: 'parent', status: 'processing', adaptations: [
-        {platform:'公众号',status:'processing'},{platform:'B站',status:'none'}
-      ], notes: '正在收集行业数据' }
+      processing: { role: 'parent', status: 'done', adaptations: [{platform:'公众号',status:'done'},{platform:'小红书',status:'done'},{platform:'视频号',status:'done'}], notes: '公众号深度文为母内容' }
     });
     DB.addTopic({
       title: '我用 Notion 搭建了完整的内容管理系统', source: '粉丝私信', form: '中长视频',
@@ -1981,94 +2330,63 @@
       platforms: '公众号/知乎', status: '灵感', note: '等粉丝到 10 万再发',
       processing: { role: 'parent', status: 'none', adaptations: [], notes: '' }
     });
-    DB.addTopic({
-      title: 'B站 vs 抖音：哪个平台更适合新手？', source: '知乎', form: '深度图文',
-      traffic: 4, difficulty: 5, match: 4, timeliness: 3, monetization: 2, reuse: 3,
-      platforms: '公众号/知乎', status: '灵感', note: '对比类内容',
-      processing: { role: 'parent', status: 'none', adaptations: [], notes: '' }
-    });
 
-    // ===== 数据记录（20 条，覆盖全部 8 个平台）=====
+    // ===== 3. 数据记录（20 条），已发布选题有对应数据 =====
+    // 选题 t1「AI 手机大战」→ 抖音 + 视频号数据
+    DB.addData({ date: '2026-07-28', platform: '抖音', title: 'AI 手机大战全面开打', topicId: t1.id,
+      views: 22000, likes: 890, comments: 156, shares: 120, favorites: 310, followers: 65, note: '爆款' });
+    DB.addData({ date: '2026-07-28', platform: '视频号', title: 'AI 手机大战全面开打', topicId: t1.id,
+      views: 9200, likes: 480, comments: 85, shares: 130, favorites: 198, followers: 38, note: '争议性爆了' });
 
-    // --- B站（3 条）---
+    // 选题 t2「月入百万复盘」→ B站数据
+    DB.addData({ date: '2026-07-26', platform: 'B站', title: '某头部博主月入百万复盘拆解', topicId: t2.id,
+      views: 12500, likes: 620, comments: 128, shares: 85, favorites: 320, followers: 52, note: '拆解类爆款' });
+
+    // 其他数据记录（覆盖全部 8 个平台）
     DB.addData({ date: '2026-07-20', platform: 'B站', title: 'AI 工具实测（B站完整版）',
-      views: 12500, likes: 620, comments: 128, shares: 85, favorites: 320, followers: 52, note: '爆款' });
+      views: 8500, likes: 420, comments: 85, shares: 60, favorites: 180, followers: 35, note: '数据超预期' });
     DB.addData({ date: '2026-07-24', platform: 'B站', title: '自媒体工具箱 Ep.3',
       views: 8200, likes: 380, comments: 65, shares: 40, favorites: 180, followers: 28, note: '' });
-    DB.addData({ date: '2026-07-28', platform: 'B站', title: 'AI 工具实测（B站版）',
-      views: 8500, likes: 420, comments: 85, shares: 60, favorites: 180, followers: 35, note: '数据超预期' });
-
-    // --- YouTube（2 条）---
     DB.addData({ date: '2026-07-21', platform: 'YouTube', title: 'AI Tools Review (Full)',
       views: 5200, likes: 310, comments: 48, shares: 25, favorites: 95, followers: 18, note: '英文受众' });
     DB.addData({ date: '2026-07-27', platform: 'YouTube', title: 'Content Creator Workflow',
       views: 3800, likes: 220, comments: 35, shares: 18, favorites: 72, followers: 15, note: '' });
-
-    // --- 公众号（3 条）---
     DB.addData({ date: '2026-07-22', platform: '公众号', title: '新手做自媒体最容易踩的 7 个坑',
       views: 4800, likes: 234, comments: 56, shares: 89, favorites: 280, followers: 25, note: '转发率高' });
     DB.addData({ date: '2026-07-25', platform: '公众号', title: 'AI 工具实测（公众号深度版）',
       views: 3200, likes: 156, comments: 32, shares: 28, favorites: 95, followers: 12, note: '' });
     DB.addData({ date: '2026-07-29', platform: '公众号', title: '内容创作者的时间管理术',
       views: 2600, likes: 110, comments: 24, shares: 42, favorites: 150, followers: 8, note: '' });
-
-    // --- 抖音（3 条）---
-    DB.addData({ date: '2026-07-23', platform: '抖音', title: 'AI 工具实测（抖音切片 1）',
-      views: 22000, likes: 890, comments: 156, shares: 120, favorites: 310, followers: 65, note: '播放量最高' });
-    DB.addData({ date: '2026-07-26', platform: '抖音', title: '3 个让你效率翻倍的方法',
+    DB.addData({ date: '2026-07-23', platform: '抖音', title: 'AI 工具实测（抖音切片）',
       views: 18000, likes: 720, comments: 98, shares: 85, favorites: 245, followers: 52, note: '' });
-    DB.addData({ date: '2026-07-29', platform: '抖音', title: 'AI 工具实测（抖音切片 2）',
+    DB.addData({ date: '2026-07-26', platform: '抖音', title: '3 个让你效率翻倍的方法',
       views: 15000, likes: 680, comments: 120, shares: 90, favorites: 210, followers: 48, note: '短视频表现好' });
-
-    // --- 视频号（2 条）---
     DB.addData({ date: '2026-07-24', platform: '视频号', title: '新手自媒体避坑指南',
       views: 6500, likes: 320, comments: 48, shares: 72, favorites: 165, followers: 22, note: '中老年受众' });
-    DB.addData({ date: '2026-07-28', platform: '视频号', title: '为什么 90% 的人做副业都失败了',
-      views: 9200, likes: 480, comments: 85, shares: 130, favorites: 198, followers: 38, note: '争议性爆了' });
-
-    // --- 小红书（3 条）---
     DB.addData({ date: '2026-07-23', platform: '小红书', title: 'AI 工具实测（小红书图文版）',
       views: 4200, likes: 310, comments: 45, shares: 35, favorites: 280, followers: 22, note: '收藏率高' });
     DB.addData({ date: '2026-07-26', platform: '小红书', title: '自媒体必备工具清单',
       views: 5600, likes: 420, comments: 62, shares: 48, favorites: 380, followers: 35, note: '收藏破纪录' });
     DB.addData({ date: '2026-07-29', platform: '小红书', title: '博主的一天 vlog',
       views: 3800, likes: 280, comments: 38, shares: 22, favorites: 145, followers: 18, note: '' });
-
-    // --- 微博（1 条）---
     DB.addData({ date: '2026-07-25', platform: '微博', title: 'AI 工具实测（精华版）',
       views: 8800, likes: 245, comments: 68, shares: 42, favorites: 55, followers: 15, note: '' });
-
-    // --- 知乎（2 条）---
     DB.addData({ date: '2026-07-22', platform: '知乎', title: '如何看待 2026 年自媒体行业？',
       views: 6200, likes: 380, comments: 92, shares: 56, favorites: 210, followers: 28, note: '长尾流量' });
     DB.addData({ date: '2026-07-27', platform: '知乎', title: '做自媒体最需要什么能力？',
       views: 4500, likes: 256, comments: 78, shares: 38, favorites: 165, followers: 20, note: '' });
 
-    // ===== 数据邮箱示例（20 条）=====
-    DB.inboxItems = [
-      { id: DB.genId(), title: 'AI 手机大战全面开打', category: '热点话题', source: '百度热搜', heat: 8950000, suggestForm: '短视频', summary: '各大手机厂商纷纷推出 AI 功能，可作为科技数码方向的深度评测选题', url: '', status: 'unread', collectedAt: '2026-07-30T08:00:00Z' },
-      { id: DB.genId(), title: '3万亿长鑫背后的清华圈子', category: '行业动态', source: '百度热搜', heat: 5670000, suggestForm: '深度图文', summary: '芯片产业背后的高校人脉网络，适合做商业分析类内容', url: '', status: 'unread', collectedAt: '2026-07-30T08:00:00Z' },
-      { id: DB.genId(), title: '已经忘了微信是怎么取代QQ的了', category: '热点话题', source: '百度热搜', heat: 7230000, suggestForm: '短视频', summary: '引发大量讨论，适合做回忆杀/社交变迁类内容', url: '', status: 'starred', collectedAt: '2026-07-30T08:00:00Z' },
-      { id: DB.genId(), title: '某头部博主发布月入百万复盘视频', category: '竞品内容', source: 'B站', heat: 6090000, suggestForm: '中长视频', summary: '播放 600 万+，可拆解其内容结构和商业模式', url: '', status: 'unread', collectedAt: '2026-07-29T12:00:00Z' },
-      { id: DB.genId(), title: '抖音更新算法：优先推荐完播率高的内容', category: '平台政策', source: '官方公告', heat: 0, suggestForm: '短视频', summary: '完播率权重提升，需要调整内容节奏和开头 Hook 策略', url: '', status: 'starred', collectedAt: '2026-07-29T12:00:00Z' },
-      { id: DB.genId(), title: 'Claude 4 发布：多模态能力大幅提升', category: 'AI工具', source: '行业媒体', heat: 4500000, suggestForm: '深度图文', summary: '新模型可处理图片+文本，适合做工具实测', url: '', status: 'unread', collectedAt: '2026-07-29T08:00:00Z' },
-      { id: DB.genId(), title: '广东人饭前烫碗的含金量还在上升', category: '热点话题', source: '百度热搜', heat: 3400000, suggestForm: '短视频', summary: '地域文化话题，互动性强，适合做轻松类内容', url: '', status: 'unread', collectedAt: '2026-07-29T08:00:00Z' },
-      { id: DB.genId(), title: 'B站 UP 主商业变现新政策解读', category: '平台政策', source: 'B站', heat: 0, suggestForm: '深度图文', summary: '创作激励规则调整，影响所有B站创作者收入', url: '', status: 'converted', collectedAt: '2026-07-28T12:00:00Z' },
-      { id: DB.genId(), title: '某AI视频生成工具获得5000万融资', category: 'AI工具', source: '行业媒体', heat: 1200000, suggestForm: '中长视频', summary: '可做产品评测+行业分析，变现潜力高', url: '', status: 'unread', collectedAt: '2026-07-28T08:00:00Z' },
-      { id: DB.genId(), title: '小红书推出「好物体验」新功能', category: '平台政策', source: '小红书', heat: 0, suggestForm: '小红书图文', summary: '新功能带来新的流量入口，适合做教程类内容', url: '', status: 'archived', collectedAt: '2026-07-27T12:00:00Z' },
-      { id: DB.genId(), title: '某百万粉博主宣布停更', category: '竞品内容', source: '微博热搜', heat: 8900000, suggestForm: '深度图文', summary: '引发创作者群体讨论，适合做行业反思类内容', url: '', status: 'starred', collectedAt: '2026-07-27T08:00:00Z' },
-      { id: DB.genId(), title: '视频号打通微信生态全链路', category: '平台政策', source: '微信公开课', heat: 0, suggestForm: '深度图文', summary: '视频号可挂载小程序、跳转公众号，商业化路径更清晰', url: '', status: 'unread', collectedAt: '2026-07-26T12:00:00Z' },
-      { id: DB.genId(), title: '演员修杰楷当庭认罪引发热议', category: '热点话题', source: '百度热搜', heat: 6800000, suggestForm: '短视频', summary: '明星话题热度高，可做观点评论类内容', url: '', status: 'unread', collectedAt: '2026-07-30T08:00:00Z' },
-      { id: DB.genId(), title: '赵心童6比2淘汰丁俊晖', category: '热点话题', source: '百度热搜', heat: 5200000, suggestForm: '短视频', summary: '体育赛事热点，适合做速报+赛后分析', url: '', status: 'unread', collectedAt: '2026-07-30T08:00:00Z' },
-      { id: DB.genId(), title: '某测评博主用AI做了整条视频获百万播放', category: '竞品内容', source: 'B站', heat: 2800000, suggestForm: '中长视频', summary: 'AI生成内容案例，可拆解其工作流并复刻', url: '', status: 'unread', collectedAt: '2026-07-28T12:00:00Z' },
-      { id: DB.genId(), title: 'GPT-5 内测曝光：推理能力提升10倍', category: 'AI工具', source: '推特', heat: 9800000, suggestForm: '深度图文', summary: '重磅AI新闻，第一时间做解读内容流量极大', url: '', status: 'starred', collectedAt: '2026-07-30T12:00:00Z' },
-      { id: DB.genId(), title: '三伏天公园又现赤裸晒背', category: '热点话题', source: '百度热搜', heat: 2100000, suggestForm: '短视频', summary: '养生话题自带争议，评论区容易爆', url: '', status: 'unread', collectedAt: '2026-07-29T08:00:00Z' },
-      { id: DB.genId(), title: '某知识区UP主用Notion搭建内容数据库爆火', category: '竞品内容', source: 'B站', heat: 1500000, suggestForm: '中长视频', summary: '工具教程类内容，可直接对标做同类选题', url: '', status: 'unread', collectedAt: '2026-07-27T12:00:00Z' },
-      { id: DB.genId(), title: 'YouTube Shorts 分成计划扩大到所有创作者', category: '平台政策', source: 'YouTube官方', heat: 0, suggestForm: '短视频', summary: '变现门槛降低，做YouTube短视频的时机到了', url: '', status: 'starred', collectedAt: '2026-07-26T08:00:00Z' },
-      { id: DB.genId(), title: '某小红书博主一条图文带货10万+', category: '竞品内容', source: '小红书', heat: 3200000, suggestForm: '小红书图文', summary: '拆解其选品和文案策略，适合做变现复盘', url: '', status: 'unread', collectedAt: '2026-07-25T12:00:00Z' }
-    ];
-    DB.save('inbox');
+    // 合并邮箱数据（已转选题的 3 条 + 普通的 17 条）
+    DB.inboxItems = inboxConverted.concat(inboxNormal);
 
+    // ===== 4. 日复盘（2 条）=====
+    DB.dailyReviews = [
+      { id: DB.genId(), date: '2026-07-29', mood: '🔥 高效', done: '发布了 AI 手机大战到抖音和视频号，数据超出预期', highlight: '抖音 22000 播放，视频号 9200 播放', reflect: '热点选题爆发力强，以后要更快跟进', tomorrow: '继续监控数据，准备 B站变现政策选题', createdAt: now, updatedAt: now },
+      { id: DB.genId(), date: '2026-07-28', mood: '✅ 正常', done: '调研 B站变现新政策，开始写深度图文', highlight: '月入百万复盘 B站播放 12500', reflect: '竞品拆解类内容数据稳定', tomorrow: '完成变现政策文章初稿', createdAt: now, updatedAt: now }
+    ];
+
+    // 统一保存
+    DB.save();
     renderDashboard();
     updateBadge();
   }
@@ -2083,7 +2401,7 @@
     DB.save();
     // 重新加载示例数据
     addSampleData();
-    showToast('示例数据已重置（8 选题 + 20 数据 + 20 邮箱）');
+    showToast('示例数据已重置（8 选题 + 20 数据 + 20 邮箱，数据已关联）');
     navigate('dashboard');
   }
   window.navigate = navigate;
@@ -2111,11 +2429,15 @@
   window.renderInbox = renderInbox;
   window.openInboxAddModal = openInboxAddModal;
   window.saveInboxItem = saveInboxItem;
+  window.syncAiHot = syncAiHot;
   window.convertInboxToTopic = convertInboxToTopic;
   window.confirmConvert = confirmConvert;
   window.toggleInboxStar = toggleInboxStar;
   window.archiveInboxItem = archiveInboxItem;
   window.markAllRead = markAllRead;
+  window.undoConvert = undoConvert;
+  window.restoreInboxItem = restoreInboxItem;
+  window.jumpToTopic = jumpToTopic;
   window.renderBoard = renderBoard;
   window.openScoreModal = openScoreModal;
   window.loadScoreData = loadScoreData;

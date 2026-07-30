@@ -32,18 +32,34 @@
 ### 示例数据
 首次打开自动加载演示数据（8 选题 + 20 数据 + 20 邮箱），点击左下角「🔄 重置示例数据」可随时重置。
 
+### 本地文件存储（推荐）
+通过本地服务器运行，数据自动保存到 `local-data.json` 文件，清缓存/换浏览器不丢失：
+```bash
+node local-server.js
+```
+运行后浏览器自动打开 `http://localhost:3456`，顶栏显示绿点「已保存」表示文件存储已生效。
+
+**三种存储模式自动切换**：
+| 模式 | 触发条件 | 数据位置 | 特点 |
+|------|---------|---------|------|
+| 本地文件 | 运行了 local-server.js | local-data.json | 持久化，最可靠 |
+| 浏览器缓存 | 直接打开 HTML | localStorage | 快速，清缓存会丢 |
+| GitHub 云端 | 配置了同步 Token | GitHub data.json | 多设备同步 |
+
 ## 📂 项目结构
 
 ```
 opc-workbench/
 ├── index.html           # 主页面（HTML + 内联 CSS）
 ├── assets/
-│   ├── app.js           # 核心逻辑（路由、DB、同步、各模块渲染）
+│   ├── app.js           # 核心逻辑（路由、DB、存储、同步、各模块渲染）
 │   └── charts.js        # ECharts 图表渲染
 ├── _shared/
 │   └── js/
 │       └── echarts.min.js   # ECharts 图表库
+├── local-server.js      # 本地数据服务器（零依赖 Node.js）
 ├── deploy.sh            # 标准化部署脚本
+├── local-data.json      # 本地数据文件（运行后自动生成）
 ├── .gitignore           # 排除数据文件和系统文件
 └── README.md
 ```
