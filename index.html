@@ -386,7 +386,239 @@ tbody tr:last-child td { border-bottom: none; }
   .form-row, .form-row.cols-3, .form-row.cols-4 { grid-template-columns: 1fr; }
   .stat-grid { grid-template-columns: 1fr; }
 }
+
+/* ========== 2026 Visual System: Creative Command Center ========== */
+:root {
+  --bg: #080b0d;
+  --bg2: #111619;
+  --ink: #f2f6f3;
+  --muted: #84908a;
+  --rule: #26302c;
+  --accent: #7dffb2;
+  --accent2: #ff784f;
+  --accent-soft: rgba(125,255,178,.09);
+  --accent2-soft: rgba(255,120,79,.1);
+  --sidebar-w: 248px;
+  --radius: 6px;
+  --radius-sm: 4px;
+  --shadow: 0 16px 42px rgba(0,0,0,.22);
+  --shadow-lg: 0 24px 80px rgba(0,0,0,.42);
+  --green: #7dffb2;
+  --green-soft: rgba(125,255,178,.1);
+  --yellow: #ffd166;
+  --yellow-soft: rgba(255,209,102,.11);
+  --red: #ff625f;
+  --red-soft: rgba(255,98,95,.11);
+}
+body {
+  background:
+    linear-gradient(rgba(125,255,178,.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(125,255,178,.025) 1px, transparent 1px), var(--bg);
+  background-size: 48px 48px;
+  letter-spacing: 0;
+}
+body::before {
+  content: ''; position: fixed; inset: 0; pointer-events: none; z-index: -1;
+  background: radial-gradient(circle at 82% 8%, rgba(125,255,178,.08), transparent 26%);
+}
+.sidebar {
+  background: rgba(12,16,18,.96); border-right-color: var(--rule);
+  padding: 0 12px; backdrop-filter: blur(18px);
+}
+.sidebar::after {
+  content: ''; position: absolute; top: 0; right: -1px; width: 1px; height: 18%;
+  background: var(--accent); box-shadow: 0 0 18px var(--accent);
+}
+.sidebar-header { padding: 26px 10px 24px; border: 0; }
+.sidebar-header .logo { gap: 12px; }
+.sidebar-header .logo-icon {
+  position: relative; width: 38px; height: 38px; color: #07100b; border-radius: 3px;
+  background: var(--accent); font-size: 13px; box-shadow: 0 0 28px rgba(125,255,178,.2);
+}
+.sidebar-header .logo-icon::after {
+  content: ''; position: absolute; inset: 4px; border: 1px solid rgba(7,16,11,.32);
+}
+.sidebar-header .logo-text { font-size: 15px; text-transform: uppercase; }
+.sidebar-header .logo-sub { color: #53605a; letter-spacing: 1.6px; text-transform: uppercase; font-size: 9px; }
+.nav-section-label { padding: 12px 12px 8px; color: #52605a; font-size: 9px; font-weight: 800; letter-spacing: 1.8px; }
+.sidebar-nav { padding: 4px 0; }
+.nav-item { min-height: 42px; border-radius: 3px; padding: 10px 12px; color: #929c97; margin-bottom: 4px; }
+.nav-item:hover { background: rgba(255,255,255,.035); color: var(--ink); transform: translateX(2px); }
+.nav-item.active {
+  background: var(--accent); color: #07100b; box-shadow: 0 8px 28px rgba(125,255,178,.12);
+}
+.nav-item .nav-icon { filter: grayscale(1); font-size: 14px; }
+.nav-item.active .nav-icon { filter: none; }
+.nav-item .nav-badge { background: #272e2b; color: #9eaaa4; border-radius: 2px; }
+.nav-item.active .nav-badge { background: #07100b; color: var(--accent); }
+.sidebar-footer { margin: 12px 0; padding: 16px 10px; border: 1px solid var(--rule); border-radius: 4px; background: #0e1315; }
+.main { background: transparent; }
+.topbar {
+  min-height: 72px; padding: 14px 28px; background: rgba(8,11,13,.82);
+  border-bottom-color: var(--rule); backdrop-filter: blur(18px);
+}
+.topbar-heading { display: flex; align-items: baseline; gap: 12px; }
+.topbar-title { font-size: 18px; letter-spacing: 0; }
+.topbar-title::before { content: '//'; color: var(--accent); margin-right: 8px; font-size: 12px; }
+.topbar-date { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; }
+.content { max-width: 1540px; margin: 0 auto; padding: 28px; }
+.page.active { animation: pageIn .42s cubic-bezier(.2,.8,.2,1); }
+@keyframes pageIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+.card, .stat-card, .quick-card {
+  background: rgba(17,22,25,.9); border: 1px solid var(--rule); box-shadow: none;
+}
+.card { padding: 22px; }
+.card-header { padding-bottom: 14px; border-bottom: 1px solid var(--rule); }
+.card-title { font-size: 13px; text-transform: uppercase; letter-spacing: .8px; }
+.btn { min-height: 34px; background: #141a1d; border-color: #303a36; color: #dfe6e2; }
+.btn:hover { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); transform: translateY(-1px); }
+.btn-primary { background: var(--accent); color: #07100b; box-shadow: none; }
+.btn-primary:hover { background: #a0ffc5; color: #07100b; opacity: 1; }
+.form-input, .form-select, .form-textarea { background: #0d1214; border-color: #303a36; color: var(--ink); }
+.form-input:focus, .form-select:focus, .form-textarea:focus { box-shadow: 0 0 0 3px var(--accent-soft); }
+.table-wrap { border-radius: 4px; }
+th { background: #0c1113; color: #77837d; letter-spacing: .5px; }
+td { border-color: #222b27; }
+tbody tr:hover { background: rgba(125,255,178,.035); }
+.hero-console {
+  position: relative; min-height: 238px; display: grid; grid-template-columns: 1.35fr .65fr;
+  overflow: hidden; margin-bottom: 20px; border: 1px solid var(--rule); background: #0d1214;
+}
+.hero-copy { padding: 34px; position: relative; z-index: 2; }
+.hero-kicker { color: var(--accent); font: 700 10px/1 ui-monospace, monospace; letter-spacing: 2px; margin-bottom: 22px; }
+.hero-console h1 { max-width: 680px; font-size: clamp(30px, 4vw, 54px); line-height: 1.03; font-weight: 800; letter-spacing: 0; }
+.hero-console h1 span { color: var(--accent); }
+.hero-console p { max-width: 540px; color: var(--muted); margin-top: 16px; font-size: 13px; }
+.hero-actions { display: flex; gap: 8px; margin-top: 24px; }
+.hero-visual { position: relative; overflow: hidden; min-height: 210px; background: #0a0f11; }
+.signal-ring { position: absolute; width: 270px; aspect-ratio: 1; border: 1px solid rgba(125,255,178,.32); border-radius: 50%; top: 50%; left: 50%; transform: translate(-50%,-50%); }
+.signal-ring::before, .signal-ring::after { content: ''; position: absolute; border: 1px solid rgba(125,255,178,.18); border-radius: 50%; inset: 32px; }
+.signal-ring::after { inset: 70px; background: var(--accent); box-shadow: 0 0 70px rgba(125,255,178,.28); animation: signal 2.8s ease-in-out infinite; }
+.signal-cross { position: absolute; inset: 0; background: linear-gradient(90deg, transparent 49.8%, rgba(125,255,178,.22) 50%, transparent 50.2%), linear-gradient(transparent 49.8%, rgba(125,255,178,.22) 50%, transparent 50.2%); }
+.signal-label { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); color: #07100b; z-index: 2; font: 900 11px/1 monospace; }
+@keyframes signal { 50% { transform: scale(.82); box-shadow: 0 0 35px rgba(125,255,178,.18); } }
+.stat-grid { gap: 12px; }
+.stat-card { min-height: 154px; padding: 20px; transition: transform .2s, border-color .2s; }
+.stat-card:hover { transform: translateY(-3px); border-color: #435149; }
+.stat-card::before { top: auto; bottom: 0; height: 2px; background: var(--accent); transform-origin: left; transform: scaleX(.25); transition: transform .25s; }
+.stat-card:hover::before { transform: scaleX(1); }
+.stat-card .stat-icon { position: absolute; right: 18px; top: 16px; filter: grayscale(1); opacity: .45; }
+.stat-card .stat-value { font-size: 34px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; margin-top: 20px; }
+.stat-card .stat-label { text-transform: uppercase; letter-spacing: .8px; }
+.quick-card { position: relative; min-height: 132px; border-radius: 4px; }
+.quick-card::after { content: '↗'; position: absolute; right: 16px; top: 14px; color: #52605a; }
+.quick-card:hover { border-color: var(--accent); box-shadow: none; transform: translateY(-3px); }
+.quick-card .qc-icon { filter: grayscale(1); }
+.chart-box { min-height: 320px; }
+.modal-overlay { background: rgba(0,0,0,.72); backdrop-filter: blur(8px); }
+.modal { border: 1px solid #35413b; background: #111619; border-radius: 6px; }
+.modal-header, .modal-footer { border-color: var(--rule); }
+.toast { background: var(--accent); color: #07100b; border-radius: 3px; }
+.tag, .status-pill { border-radius: 2px; }
+.template-card { background: #0e1315; }
+.theme-toggle {
+  width: 34px; padding: 0; justify-content: center; font-size: 15px;
+  overflow: hidden; transition: color .25s, background .25s, border-color .25s, transform .25s;
+}
+.theme-toggle:hover { transform: rotate(8deg) translateY(-1px); }
+.theme-toggle .theme-icon { display: inline-block; line-height: 1; }
+
+/* 浅色主题：雾白画布 + 森林绿 + 珊瑚橙 */
+html[data-theme="light"] {
+  --bg: #f3f6f3;
+  --bg2: #ffffff;
+  --ink: #16211c;
+  --muted: #68756e;
+  --rule: #d9e1dc;
+  --accent: #087a52;
+  --accent2: #e95832;
+  --accent-soft: rgba(8,122,82,.08);
+  --accent2-soft: rgba(233,88,50,.09);
+  --shadow: 0 12px 36px rgba(36,61,48,.07);
+  --shadow-lg: 0 24px 70px rgba(36,61,48,.14);
+  --green: #087a52;
+  --green-soft: rgba(8,122,82,.09);
+  --yellow: #a86b00;
+  --yellow-soft: rgba(219,145,18,.12);
+  --red: #d43d3a;
+  --red-soft: rgba(212,61,58,.09);
+}
+html[data-theme="light"] body {
+  background:
+    linear-gradient(rgba(8,122,82,.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(8,122,82,.035) 1px, transparent 1px), var(--bg);
+  background-size: 48px 48px;
+}
+html[data-theme="light"] body::before { background: radial-gradient(circle at 82% 8%, rgba(8,122,82,.08), transparent 26%); }
+html[data-theme="light"] .sidebar { background: rgba(248,251,249,.96); }
+html[data-theme="light"] .sidebar::after { box-shadow: 0 0 14px rgba(8,122,82,.35); }
+html[data-theme="light"] .sidebar-header .logo-icon { color: #fff; box-shadow: 0 8px 24px rgba(8,122,82,.18); }
+html[data-theme="light"] .sidebar-header .logo-icon::after { border-color: rgba(255,255,255,.42); }
+html[data-theme="light"] .sidebar-header .logo-sub,
+html[data-theme="light"] .nav-section-label { color: #819087; }
+html[data-theme="light"] .nav-item { color: #59675f; }
+html[data-theme="light"] .nav-item:hover { background: rgba(8,122,82,.055); color: #15251d; }
+html[data-theme="light"] .nav-item.active { color: #fff; box-shadow: 0 8px 24px rgba(8,122,82,.15); }
+html[data-theme="light"] .nav-item .nav-badge { background: #e4eae6; color: #68756e; }
+html[data-theme="light"] .nav-item.active .nav-badge { background: rgba(255,255,255,.9); color: var(--accent); }
+html[data-theme="light"] .sidebar-footer { background: #f7faf8; }
+html[data-theme="light"] .topbar { background: rgba(246,249,247,.86); }
+html[data-theme="light"] .card,
+html[data-theme="light"] .stat-card,
+html[data-theme="light"] .quick-card { background: rgba(255,255,255,.92); box-shadow: var(--shadow); }
+html[data-theme="light"] .btn { background: #fff; border-color: #cfd9d3; color: #27362e; }
+html[data-theme="light"] .btn:hover { color: var(--accent); background: #f1f8f4; }
+html[data-theme="light"] .btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+html[data-theme="light"] .btn-primary:hover { background: #056a47; color: #fff; }
+html[data-theme="light"] .form-input,
+html[data-theme="light"] .form-select,
+html[data-theme="light"] .form-textarea { background: #fff; border-color: #ccd7d1; }
+html[data-theme="light"] th { background: #edf2ef; color: #59675f; }
+html[data-theme="light"] td { border-color: #e3e9e5; }
+html[data-theme="light"] tbody tr:hover { background: rgba(8,122,82,.035); }
+html[data-theme="light"] .hero-console { background: #fff; box-shadow: var(--shadow); }
+html[data-theme="light"] .hero-visual { background: #eaf3ee; }
+html[data-theme="light"] .signal-ring { border-color: rgba(8,122,82,.3); }
+html[data-theme="light"] .signal-ring::before,
+html[data-theme="light"] .signal-ring::after { border-color: rgba(8,122,82,.18); }
+html[data-theme="light"] .signal-ring::after { background: var(--accent); box-shadow: 0 0 54px rgba(8,122,82,.22); }
+html[data-theme="light"] .signal-cross { background: linear-gradient(90deg, transparent 49.8%, rgba(8,122,82,.16) 50%, transparent 50.2%), linear-gradient(transparent 49.8%, rgba(8,122,82,.16) 50%, transparent 50.2%); }
+html[data-theme="light"] .signal-label { color: #fff; }
+html[data-theme="light"] .stat-card:hover { border-color: #a8bdb2; }
+html[data-theme="light"] .modal { background: #fff; border-color: #ccd7d1; }
+html[data-theme="light"] .template-card { background: #f8faf9; }
+html[data-theme="light"] .toast { color: #fff; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
+@media (max-width: 900px) {
+  .hero-console { grid-template-columns: 1fr; }
+  .hero-visual { min-height: 160px; }
+}
+@media (max-width: 768px) {
+  :root { --sidebar-w: 0px; }
+  .content { padding: 16px; padding-top: 20px; }
+  .topbar { padding-left: 58px; min-height: 62px; }
+  .topbar-date, #syncIndicator, #syncBtn { display: none !important; }
+  .topbar-actions .btn:not(.btn-primary) { display: none; }
+  .topbar-actions #themeToggle { display: inline-flex; }
+  .hero-copy { padding: 24px 20px; }
+  .hero-console h1 { font-size: 34px; }
+  .hero-actions { flex-wrap: wrap; }
+  .stat-grid { grid-template-columns: repeat(2, 1fr); }
+  .stat-card { min-height: 132px; }
+  .stat-card .stat-value { font-size: 27px; }
+}
+@media (max-width: 430px) {
+  .stat-grid { grid-template-columns: 1fr; }
+  .hero-visual { display: none; }
+}
 </style>
+<script>
+  (function() {
+    var savedTheme = localStorage.getItem('opc_theme');
+    var preferredLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
+    document.documentElement.setAttribute('data-theme', savedTheme || (preferredLight ? 'light' : 'dark'));
+  })();
+</script>
 </head>
 <body>
 
@@ -405,8 +637,10 @@ tbody tr:last-child td { border-bottom: none; }
     </div>
   </div>
   <nav class="sidebar-nav" id="navMenu">
+    <div class="nav-section-label">OVERVIEW</div>
     <a class="nav-item active" data-page="dashboard"><span class="nav-icon">📊</span>仪表盘</a>
     <a class="nav-item" data-page="inbox"><span class="nav-icon">📬</span>数据邮箱<span class="nav-badge" id="badge-inbox">0</span></a>
+    <div class="nav-section-label">WORKFLOW</div>
     <a class="nav-item" data-page="topics"><span class="nav-icon">💡</span>选题看板<span class="nav-badge" id="badge-topics">0</span></a>
     <a class="nav-item" data-page="board"><span class="nav-icon">🎯</span>内容看板</a>
     <a class="nav-item" data-page="data"><span class="nav-icon">📈</span>数据追踪</a>
@@ -432,9 +666,14 @@ tbody tr:last-child td { border-bottom: none; }
 <div class="main">
   <!-- 顶栏 -->
   <div class="topbar">
-    <div class="topbar-title" id="pageTitle">仪表盘</div>
-    <div class="topbar-date" id="topbarDate"></div>
+    <div class="topbar-heading">
+      <div class="topbar-title" id="pageTitle">仪表盘</div>
+      <div class="topbar-date" id="topbarDate"></div>
+    </div>
     <div class="topbar-actions">
+      <button class="btn btn-sm theme-toggle" id="themeToggle" onclick="toggleTheme()" title="切换浅色主题" aria-label="切换浅色主题">
+        <span class="theme-icon" id="themeIcon">☀</span>
+      </button>
       <div id="syncIndicator" style="display:none; font-size:12px; color:var(--muted); display:flex; align-items:center; gap:4px; margin-right:8px;">
         <span id="syncDot" style="width:8px;height:8px;border-radius:50%;background:var(--muted);"></span>
         <span id="syncText">未连接</span>
@@ -449,6 +688,21 @@ tbody tr:last-child td { border-bottom: none; }
 
     <!-- ====== 仪表盘 ====== -->
     <div class="page active" id="page-dashboard">
+      <section class="hero-console">
+        <div class="hero-copy">
+          <div class="hero-kicker">CONTENT OPERATING SYSTEM / LIVE</div>
+          <h1>让灵感进入<br><span>高效创作轨道</span></h1>
+          <p>从趋势捕捉、选题判断到发布复盘，在一个控制台里完成你的内容增长闭环。</p>
+          <div class="hero-actions">
+            <button class="btn btn-primary" onclick="openTopicModal()">＋ 捕捉新灵感</button>
+            <button class="btn" onclick="openDailyModal()">今日复盘</button>
+          </div>
+        </div>
+        <div class="hero-visual" aria-hidden="true">
+          <div class="signal-cross"></div>
+          <div class="signal-ring"><span class="signal-label">ON AIR</span></div>
+        </div>
+      </section>
       <div class="stat-grid">
         <div class="stat-card">
           <div class="stat-icon">💡</div>
@@ -496,6 +750,17 @@ tbody tr:last-child td { border-bottom: none; }
             <div class="qc-title">今日复盘</div>
             <div class="qc-desc">日复盘 3 分钟搞定</div>
           </div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-header"><div class="card-title">内容增长信号</div><span class="tag tag-accent">LIVE</span></div>
+          <div id="chart-dash-trend" class="chart-box"></div>
+        </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">创作管线分布</div><span class="tag tag-muted">PIPELINE</span></div>
+          <div id="chart-dash-topics" class="chart-box"></div>
         </div>
       </div>
     </div>

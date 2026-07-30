@@ -345,6 +345,31 @@
     return '<span class="tag tag-muted">' + score + ' 低</span>';
   }
 
+  // ========== 主题管理 ==========
+  function updateThemeControl() {
+    var isLight = document.documentElement.getAttribute('data-theme') === 'light';
+    var button = $('themeToggle');
+    var icon = $('themeIcon');
+    if (!button || !icon) return;
+    icon.textContent = isLight ? '☾' : '☀';
+    button.title = isLight ? '切换深色主题' : '切换浅色主题';
+    button.setAttribute('aria-label', button.title);
+  }
+
+  function toggleTheme() {
+    var current = document.documentElement.getAttribute('data-theme') || 'dark';
+    var next = current === 'light' ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', next);
+    localStorage.setItem('opc_theme', next);
+    updateThemeControl();
+
+    var activePage = document.querySelector('.page.active');
+    if (activePage && activePage.id === 'page-dashboard') renderDashboard();
+    if (activePage && activePage.id === 'page-data') renderDataPage();
+  }
+
+  window.toggleTheme = toggleTheme;
+
   // ========== 导航 ==========
   var pageTitles = {
     dashboard: '仪表盘',
@@ -417,6 +442,11 @@
       if (avg > bestEng) { bestEng = avg; bestPlatform = p; }
     });
     $('dash-best-platform').textContent = bestPlatform !== '—' ? '最佳：' + bestPlatform : '—';
+
+    // 首页数据可视化在 charts.js 就绪后渲染
+    if (typeof window.renderDashCharts === 'function') {
+      window.renderDashCharts(data, topics);
+    }
 
     // Badge
     $('badge-topics').textContent = topics.length;
@@ -1863,6 +1893,7 @@
   function init() {
     DB.load();
     Sync.loadConfig();
+    updateThemeControl();
 
     // 同步指示器初始化
     if (Sync.isConfigured()) {

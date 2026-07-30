@@ -12,6 +12,16 @@
 
   var charts = {};
 
+  function refreshTheme() {
+    style = getComputedStyle(document.documentElement);
+    accent = style.getPropertyValue('--accent').trim() || '#6366f1';
+    accent2 = style.getPropertyValue('--accent2').trim() || '#ec4899';
+    ink = style.getPropertyValue('--ink').trim() || '#1a1d29';
+    muted = style.getPropertyValue('--muted').trim() || '#6b7280';
+    rule = style.getPropertyValue('--rule').trim() || '#e5e7eb';
+    bg2 = style.getPropertyValue('--bg2').trim() || '#ffffff';
+  }
+
   function initChart(id) {
     var el = document.getElementById(id);
     if (!el) return null;
@@ -22,6 +32,7 @@
 
   // ========== 仪表盘：数据趋势 ==========
   window.renderDashCharts = function(data, topics) {
+    refreshTheme();
     // 趋势折线图
     var trendChart = initChart('chart-dash-trend');
     if (trendChart) {
@@ -32,7 +43,8 @@
       var views = sorted.map(function(d) { return d.views || 0; });
 
       trendChart.setOption({
-        animation: false,
+        animation: true,
+        animationDuration: 900,
         tooltip: { trigger: 'axis', appendToBody: true },
         grid: { top: 20, right: 20, bottom: 30, left: 50 },
         xAxis: {
@@ -53,7 +65,8 @@
         },
         series: [{
           type: 'line', data: views, smooth: true,
-          lineStyle: { color: accent, width: 2 },
+          symbol: 'circle', symbolSize: 7,
+          lineStyle: { color: accent, width: 3, shadowColor: accent, shadowBlur: 10 },
           itemStyle: { color: accent },
           areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
             colorStops: [{ offset: 0, color: accent + '30' }, { offset: 1, color: accent + '05' }]
@@ -77,7 +90,8 @@
       var colors = [muted, '#f59e0b', accent, accent2, '#10b981'];
 
       topicChart.setOption({
-        animation: false,
+        animation: true,
+        animationDuration: 900,
         tooltip: { trigger: 'item', appendToBody: true },
         legend: { bottom: 0, textStyle: { color: muted, fontSize: 12 }, itemWidth: 12, itemHeight: 8 },
         series: [{
@@ -233,6 +247,7 @@
 
   // ========== 数据追踪页面图表 ==========
   window.renderDataCharts = function(data) {
+    refreshTheme();
     // 趋势图
     var trendChart = initChart('chart-data-trend');
     if (trendChart) {
@@ -328,6 +343,7 @@
 
   // ========== 单平台趋势图（双 Y 轴：播放 + 互动率）==========
   window.renderPlatformChart = function(containerId, sortedData, config) {
+    refreshTheme();
     var el = document.getElementById(containerId);
     if (!el || !sortedData || sortedData.length === 0) return;
 
