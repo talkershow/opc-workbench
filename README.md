@@ -16,7 +16,7 @@
 ## 🚀 使用
 
 ### 本地使用
-直接用浏览器打开 `opc-workbench.html` 即可。
+直接用浏览器打开 `index.html` 即可。
 
 ### 线上部署
 已部署到 GitHub Pages：[https://talkershow.github.io/opc-workbench/](https://talkershow.github.io/opc-workbench/)
@@ -31,7 +31,7 @@
 
 ```
 opc-workbench/
-├── opc-workbench.html   # 主页面
+├── index.html           # 主页面
 ├── assets/
 │   ├── app.js           # 核心逻辑
 │   └── charts.js        # 图表渲染
