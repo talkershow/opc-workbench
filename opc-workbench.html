@@ -406,20 +406,24 @@ tbody tr:last-child td { border-bottom: none; }
   </div>
   <nav class="sidebar-nav" id="navMenu">
     <a class="nav-item active" data-page="dashboard"><span class="nav-icon">📊</span>仪表盘</a>
+    <a class="nav-item" data-page="inbox"><span class="nav-icon">📬</span>数据邮箱<span class="nav-badge" id="badge-inbox">0</span></a>
     <a class="nav-item" data-page="topics"><span class="nav-icon">💡</span>选题看板<span class="nav-badge" id="badge-topics">0</span></a>
+    <a class="nav-item" data-page="board"><span class="nav-icon">🎯</span>内容看板</a>
     <a class="nav-item" data-page="data"><span class="nav-icon">📈</span>数据追踪</a>
-    <a class="nav-item" data-page="hot"><span class="nav-icon">🔥</span>热点快览</a>
     <a class="nav-item" data-page="review"><span class="nav-icon">📝</span>周复盘</a>
     <a class="nav-item" data-page="toolkit"><span class="nav-icon">🧰</span>SOP 工具箱</a>
   </nav>
   <div class="sidebar-footer">
     <div>v1.0 · 数据本地存储</div>
     <div style="margin-top:4px;">
-      <a href="#" onclick="openSyncSettings();return false" style="color:var(--accent);text-decoration:none;font-weight:600;">☁ GitHub 同步</a>
+      <a href="#" onclick="openSyncSettings();return false" style="color:var(--accent);text-decoration:none;font-weight:600;">☁ 同步</a>
       <span style="margin:0 4px;">·</span>
       <a href="#" onclick="exportData();return false" style="color:var(--accent);text-decoration:none;font-weight:600;">导出</a>
       <span style="margin:0 4px;">·</span>
       <a href="#" onclick="importData();return false" style="color:var(--accent);text-decoration:none;font-weight:600;">导入</a>
+    </div>
+    <div style="margin-top:6px;">
+      <a href="#" onclick="resetSampleData();return false" style="color:var(--accent2);text-decoration:none;font-weight:600;font-size:11px;">🔄 重置示例数据</a>
     </div>
   </div>
 </aside>
@@ -472,54 +476,65 @@ tbody tr:last-child td { border-bottom: none; }
         </div>
       </div>
 
-      <div class="grid-2">
-        <div class="card">
-          <div class="card-header"><div class="card-title">📈 内容数据趋势</div></div>
-          <div id="chart-dash-trend" class="chart-box" style="min-height:280px;"></div>
-        </div>
-        <div class="card">
-          <div class="card-header"><div class="card-title">🎯 选题状态分布</div></div>
-          <div id="chart-dash-topics" class="chart-box" style="min-height:280px;"></div>
-        </div>
-      </div>
-
       <div class="card">
         <div class="card-header">
           <div class="card-title">⚡ 快捷入口</div>
         </div>
         <div class="grid-3">
-          <div class="quick-card" onclick="navigate('topics')">
-            <div class="qc-icon">💡</div>
-            <div class="qc-title">添加选题</div>
-            <div class="qc-desc">记录灵感，评估优先级</div>
+          <div class="quick-card" onclick="openTopicModal()">
+            <div class="qc-icon">✨</div>
+            <div class="qc-title">快速选题</div>
+            <div class="qc-desc">打分评估一步到位</div>
           </div>
           <div class="quick-card" onclick="openDataModal()">
             <div class="qc-icon">📊</div>
             <div class="qc-title">记录数据</div>
             <div class="qc-desc">发布后 24h 数据录入</div>
           </div>
-          <div class="quick-card" onclick="navigate('review')">
-            <div class="qc-icon">📝</div>
-            <div class="qc-title">周复盘</div>
-            <div class="qc-desc">四问法分析，迭代策略</div>
-          </div>
-          <div class="quick-card" onclick="navigate('hot')">
-            <div class="qc-icon">🔥</div>
-            <div class="qc-title">今日热点</div>
-            <div class="qc-desc">多平台热搜速览</div>
-          </div>
-          <div class="quick-card" onclick="navigate('toolkit')">
-            <div class="qc-icon">🧰</div>
-            <div class="qc-title">SOP 工具箱</div>
-            <div class="qc-desc">模板、清单、速查表</div>
-          </div>
-          <div class="quick-card" onclick="openTopicModal()">
-            <div class="qc-icon">✨</div>
-            <div class="qc-title">快速选题</div>
-            <div class="qc-desc">打分评估一步到位</div>
+          <div class="quick-card" onclick="openDailyModal()">
+            <div class="qc-icon">☀️</div>
+            <div class="qc-title">今日复盘</div>
+            <div class="qc-desc">日复盘 3 分钟搞定</div>
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- ====== 数据邮箱 ====== -->
+    <div class="page" id="page-inbox">
+      <!-- 筛选栏 -->
+      <div class="card" style="padding:16px 20px;">
+        <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center;">
+          <div style="display:flex;gap:6px;align-items:center;">
+            <span style="font-size:12px;color:var(--muted);font-weight:600;">分类</span>
+            <select class="form-select" id="inboxFilterCategory" style="font-size:12px;width:auto;" onchange="renderInbox()">
+              <option value="">全部</option>
+              <option value="热点话题">热点话题</option>
+              <option value="行业动态">行业动态</option>
+              <option value="竞品内容">竞品内容</option>
+              <option value="平台政策">平台政策</option>
+              <option value="AI工具">AI工具</option>
+            </select>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <span style="font-size:12px;color:var(--muted);font-weight:600;">状态</span>
+            <select class="form-select" id="inboxFilterStatus" style="font-size:12px;width:auto;" onchange="renderInbox()">
+              <option value="">全部</option>
+              <option value="unread">未读</option>
+              <option value="starred">已收藏</option>
+              <option value="converted">已转选题</option>
+              <option value="archived">已归档</option>
+            </select>
+          </div>
+          <div style="margin-left:auto;display:flex;gap:8px;">
+            <button class="btn btn-sm" onclick="markAllRead()">✓ 全部已读</button>
+            <button class="btn btn-primary btn-sm" onclick="openInboxAddModal()">+ 手动添加</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 信息流列表 -->
+      <div id="inboxList"></div>
     </div>
 
     <!-- ====== 选题看板 ====== -->
@@ -548,21 +563,96 @@ tbody tr:last-child td { border-bottom: none; }
       </div>
     </div>
 
+    <!-- ====== 内容看板 ====== -->
+    <div class="page" id="page-board">
+      <!-- 筛选栏 -->
+      <div class="card" style="padding:16px 20px;">
+        <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center;">
+          <div style="display:flex;gap:6px;align-items:center;">
+            <span style="font-size:12px;color:var(--muted);font-weight:600;">分级</span>
+            <select class="form-select" id="boardFilterGrade" style="font-size:12px;width:auto;" onchange="renderBoard()">
+              <option value="">全部</option>
+              <option value="S">S 级</option>
+              <option value="A">A 级</option>
+              <option value="B">B 级</option>
+              <option value="C">C 级</option>
+            </select>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <span style="font-size:12px;color:var(--muted);font-weight:600;">状态</span>
+            <select class="form-select" id="boardFilterStatus" style="font-size:12px;width:auto;" onchange="renderBoard()">
+              <option value="">全部</option>
+              <option>灵感</option><option>待评估</option><option>已排期</option>
+              <option>创作中</option><option>已发布</option>
+            </select>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <span style="font-size:12px;color:var(--muted);font-weight:600;">形式</span>
+            <select class="form-select" id="boardFilterForm" style="font-size:12px;width:auto;" onchange="renderBoard()">
+              <option value="">全部</option>
+              <option>深度图文</option><option>中长视频</option><option>短视频</option>
+              <option>小红书图文</option><option>微博/知乎</option>
+            </select>
+          </div>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <span style="font-size:12px;color:var(--muted);font-weight:600;">排序</span>
+            <select class="form-select" id="boardSort" style="font-size:12px;width:auto;" onchange="renderBoard()">
+              <option value="score">总分降序</option>
+              <option value="grade">分级优先</option>
+              <option value="time">创建时间</option>
+              <option value="title">标题</option>
+            </select>
+          </div>
+          <div style="margin-left:auto;display:flex;gap:8px;">
+            <button class="btn btn-sm" onclick="openScoreModal()">📐 多维评分</button>
+            <button class="btn btn-primary btn-sm" onclick="openProcessModal()">🔧 二次加工</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 分级统计 -->
+      <div class="stat-grid" id="boardGradeStats" style="grid-template-columns:repeat(4,1fr);margin-bottom:20px;"></div>
+
+      <!-- 内容卡片列表 -->
+      <div id="boardList"></div>
+    </div>
+
     <!-- ====== 数据追踪 ====== -->
     <div class="page" id="page-data">
+      <!-- 全局总览 -->
       <div class="grid-2" style="margin-bottom:20px;">
         <div class="card">
-          <div class="card-header"><div class="card-title">📊 播放/阅读趋势</div></div>
+          <div class="card-header"><div class="card-title">📊 全平台数据趋势</div></div>
           <div id="chart-data-trend" class="chart-box"></div>
         </div>
         <div class="card">
-          <div class="card-header"><div class="card-title">📱 各平台对比</div></div>
+          <div class="card-header"><div class="card-title">📱 各平台总览对比</div></div>
           <div id="chart-data-platform" class="chart-box"></div>
         </div>
       </div>
+
+      <!-- 平台概览卡片 -->
+      <div id="platformOverview"></div>
+
+      <!-- 平台 Tab 切换 -->
+      <div class="card" style="padding:0;overflow:hidden;">
+        <div id="platformTabs" style="display:flex;overflow-x:auto;border-bottom:1px solid var(--rule);background:var(--bg);">
+          <!-- Tab 由 JS 动态生成 -->
+        </div>
+
+        <!-- 平台详情内容 -->
+        <div id="platformDetail" style="padding:20px;">
+          <div class="empty-state">
+            <div class="empty-icon">📊</div>
+            <div class="empty-text">选择上方平台标签查看详细数据</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 全部数据记录 -->
       <div class="card">
         <div class="card-header">
-          <div class="card-title">数据记录</div>
+          <div class="card-title">全部数据记录</div>
           <button class="btn btn-primary btn-sm" onclick="openDataModal()">+ 记数据</button>
         </div>
         <div id="dataTableWrap">
@@ -574,28 +664,66 @@ tbody tr:last-child td { border-bottom: none; }
       </div>
     </div>
 
-    <!-- ====== 热点快览 ====== -->
-    <div class="page" id="page-hot">
-      <div class="card">
-        <div class="card-header">
-          <div class="card-title">🔥 今日热点速览</div>
-          <span style="font-size:12px;color:var(--muted);" id="hotUpdateTime">—</span>
-        </div>
-        <p style="font-size:13px;color:var(--muted);margin-bottom:16px;">
-          以下为各平台热搜摘要，完整版请查看 <code>YYYY-MM-DD-热点简报.md</code><br>
-          发现好的话题？直接点击转为选题。
-        </p>
-        <div class="grid-2" id="hotGrid">
-          <div class="empty-state">
-            <div class="empty-icon">🔥</div>
-            <div class="empty-text">运行 hotscan.py 后，简报内容会展示在这里</div>
-          </div>
-        </div>
-      </div>
-    </div>
-
     <!-- ====== 周复盘 ====== -->
     <div class="page" id="page-review">
+
+      <!-- ====== 日复盘 ====== -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">☀️ 今日复盘</div>
+          <span style="font-size:12px;color:var(--muted);" id="dailyDateLabel">—</span>
+        </div>
+
+        <!-- 日复盘表单 -->
+        <div id="dailyForm">
+          <div class="grid-2" style="margin-bottom:12px;">
+            <div class="form-group">
+              <div class="form-label">日期</div>
+              <input class="form-input" type="date" id="daily-date" onchange="loadDailyReview()">
+            </div>
+            <div class="form-group">
+              <div class="form-label">今日状态</div>
+              <select class="form-select" id="daily-mood">
+                <option value="">— 选择 —</option>
+                <option value="🔥 高效">🔥 高效</option>
+                <option value="✅ 正常">✅ 正常</option>
+                <option value="😐 一般">😐 一般</option>
+                <option value="😴 低效">😴 低效</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group full" style="margin-bottom:12px;">
+            <div class="form-label">今天完成了什么？</div>
+            <textarea class="form-textarea" id="daily-done" placeholder="今天创作/发布/互动/复盘了哪些内容..." style="min-height:50px;"></textarea>
+          </div>
+          <div class="form-row" style="margin-bottom:12px;">
+            <div class="form-group">
+              <div class="form-label">数据亮点</div>
+              <textarea class="form-textarea" id="daily-highlight" placeholder="今天哪个数据表现突出？哪条内容爆了？" style="min-height:50px;"></textarea>
+            </div>
+            <div class="form-group">
+              <div class="form-label">反思与改进</div>
+              <textarea class="form-textarea" id="daily-reflect" placeholder="什么做得好？什么可以改进？" style="min-height:50px;"></textarea>
+            </div>
+          </div>
+          <div class="form-group full" style="margin-bottom:16px;">
+            <div class="form-label">明日重点</div>
+            <textarea class="form-textarea" id="daily-tomorrow" placeholder="明天最优先要做的事..." style="min-height:40px;"></textarea>
+          </div>
+          <button class="btn btn-primary" onclick="saveDailyReview()">💾 保存日复盘</button>
+        </div>
+      </div>
+
+      <!-- 日复盘历史 -->
+      <div class="card" id="dailyHistoryCard" style="display:none;">
+        <div class="card-header">
+          <div class="card-title">📋 近期日复盘</div>
+          <button class="btn btn-sm" onclick="toggleDailyHistory()" id="dailyToggleBtn">收起</button>
+        </div>
+        <div id="dailyHistory"></div>
+      </div>
+
+      <!-- ====== 周复盘 ====== -->
       <div class="card">
         <div class="card-header">
           <div class="card-title">📝 本周复盘</div>
@@ -784,6 +912,248 @@ tbody tr:last-child td { border-bottom: none; }
     <div class="modal-footer">
       <button class="btn" onclick="closeModal('dataModal')">取消</button>
       <button class="btn btn-primary" onclick="saveData()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ========== 模态框：今日复盘快捷弹窗 ====== -->
+<div class="modal-overlay" id="dailyModal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">☀️ 今日复盘</div>
+      <button class="modal-close" onclick="closeModal('dailyModal')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="grid-2" style="margin-bottom:12px;">
+        <div class="form-group">
+          <div class="form-label">日期</div>
+          <input class="form-input" type="date" id="modal-daily-date" onchange="loadDailyModal()">
+        </div>
+        <div class="form-group">
+          <div class="form-label">今日状态</div>
+          <select class="form-select" id="modal-daily-mood">
+            <option value="">— 选择 —</option>
+            <option value="🔥 高效">🔥 高效</option>
+            <option value="✅ 正常">✅ 正常</option>
+            <option value="😐 一般">😐 一般</option>
+            <option value="😴 低效">😴 低效</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group full" style="margin-bottom:12px;">
+        <div class="form-label">今天完成了什么？</div>
+        <textarea class="form-textarea" id="modal-daily-done" placeholder="今天创作/发布/互动/复盘了哪些内容..." style="min-height:50px;"></textarea>
+      </div>
+      <div class="form-row" style="margin-bottom:12px;">
+        <div class="form-group">
+          <div class="form-label">数据亮点</div>
+          <textarea class="form-textarea" id="modal-daily-highlight" placeholder="今天哪个数据表现突出？" style="min-height:50px;"></textarea>
+        </div>
+        <div class="form-group">
+          <div class="form-label">反思与改进</div>
+          <textarea class="form-textarea" id="modal-daily-reflect" placeholder="什么做得好？什么可以改进？" style="min-height:50px;"></textarea>
+        </div>
+      </div>
+      <div class="form-group full">
+        <div class="form-label">明日重点</div>
+        <textarea class="form-textarea" id="modal-daily-tomorrow" placeholder="明天最优先要做的事..." style="min-height:40px;"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('dailyModal')">取消</button>
+      <button class="btn btn-primary" onclick="saveDailyModal()">💾 保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ========== 模态框：数据邮箱转选题确认 ====== -->
+<div class="modal-overlay" id="convertModal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">转为选题</div>
+      <button class="modal-close" onclick="closeModal('convertModal')">×</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="convert-item-id">
+      <div id="convertPreview" style="margin-bottom:16px;padding:12px;background:var(--bg);border-radius:8px;font-size:13px;"></div>
+      <div class="form-group full" style="margin-bottom:12px;">
+        <div class="form-label">选题标题（可编辑）</div>
+        <input class="form-input" id="convert-title">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <div class="form-label">内容形式</div>
+          <select class="form-select" id="convert-form">
+            <option>深度图文</option><option>中长视频</option><option>短视频</option>
+            <option>小红书图文</option><option>微博/知乎</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <div class="form-label">状态</div>
+          <select class="form-select" id="convert-status">
+            <option>灵感</option><option>待评估</option><option>已排期</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group full" style="margin-bottom:16px;">
+        <div class="form-label">选择目标平台 *</div>
+        <div id="convertPlatforms" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
+      </div>
+      <div class="form-group full">
+        <div class="form-label">备注</div>
+        <input class="form-input" id="convert-note" placeholder="补充信息">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('convertModal')">取消</button>
+      <button class="btn btn-primary" onclick="confirmConvert()">确认转选题</button>
+    </div>
+  </div>
+</div>
+
+<!-- ========== 模态框：数据邮箱手动添加 ====== -->
+<div class="modal-overlay" id="inboxAddModal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">📬 添加信息流</div>
+      <button class="modal-close" onclick="closeModal('inboxAddModal')">×</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="inbox-item-id">
+      <div class="form-group full" style="margin-bottom:12px;">
+        <div class="form-label">标题 *</div>
+        <input class="form-input" id="inbox-title" placeholder="信息标题/热点话题">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <div class="form-label">分类</div>
+          <select class="form-select" id="inbox-category">
+            <option>热点话题</option><option>行业动态</option><option>竞品内容</option>
+            <option>平台政策</option><option>AI工具</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <div class="form-label">来源</div>
+          <input class="form-input" id="inbox-source" placeholder="微博/知乎/B站等">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <div class="form-label">热度值</div>
+          <input class="form-input" type="number" id="inbox-heat" placeholder="0">
+        </div>
+        <div class="form-group">
+          <div class="form-label">推荐内容形式</div>
+          <select class="form-select" id="inbox-suggest-form">
+            <option>深度图文</option><option>中长视频</option><option>短视频</option>
+            <option>小红书图文</option><option>微博/知乎</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group full" style="margin-bottom:12px;">
+        <div class="form-label">摘要 / 创作建议</div>
+        <textarea class="form-textarea" id="inbox-summary" placeholder="这条信息的要点和可创作的角度..."></textarea>
+      </div>
+      <div class="form-group full">
+        <div class="form-label">原文链接</div>
+        <input class="form-input" id="inbox-url" placeholder="https://...">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('inboxAddModal')">取消</button>
+      <button class="btn btn-primary" onclick="saveInboxItem()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ========== 模态框：多维评分 ====== -->
+<div class="modal-overlay" id="scoreModal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">📐 多维评分</div>
+      <button class="modal-close" onclick="closeModal('scoreModal')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group full" style="margin-bottom:16px;">
+        <div class="form-label">选择内容</div>
+        <select class="form-select" id="score-topic-id" onchange="loadScoreData()">
+          <option value="">— 选择选题 —</option>
+        </select>
+      </div>
+      <div id="scoreFields" style="display:none;">
+        <div class="form-row cols-3">
+          <div class="form-group"><div class="form-label">流量潜力 (1-5)</div><input class="form-input" type="number" id="score-traffic" min="1" max="5" value="3" oninput="updateScoreTotal()"></div>
+          <div class="form-group"><div class="form-label">制作难度 (1-5)</div><input class="form-input" type="number" id="score-difficulty" min="1" max="5" value="3" oninput="updateScoreTotal()"></div>
+          <div class="form-group"><div class="form-label">领域匹配 (1-5)</div><input class="form-input" type="number" id="score-match" min="1" max="5" value="3" oninput="updateScoreTotal()"></div>
+        </div>
+        <div class="form-row cols-3">
+          <div class="form-group"><div class="form-label">时效性 (1-5)</div><input class="form-input" type="number" id="score-timeliness" min="1" max="5" value="3" oninput="updateScoreTotal()"><div style="font-size:10px;color:var(--muted);">5=常青内容</div></div>
+          <div class="form-group"><div class="form-label">商业化 (1-5)</div><input class="form-input" type="number" id="score-monetization" min="1" max="5" value="3" oninput="updateScoreTotal()"><div style="font-size:10px;color:var(--muted);">5=高变现潜力</div></div>
+          <div class="form-group"><div class="form-label">复用价值 (1-5)</div><input class="form-input" type="number" id="score-reuse" min="1" max="5" value="3" oninput="updateScoreTotal()"><div style="font-size:10px;color:var(--muted);">5=一鱼多吃</div></div>
+        </div>
+        <div id="scoreResult" style="background:var(--accent-soft);border-radius:8px;padding:16px;text-align:center;margin-top:12px;">
+          <div style="font-size:12px;color:var(--muted);">综合评分</div>
+          <div id="scoreTotalVal" style="font-size:36px;font-weight:800;color:var(--accent);">0</div>
+          <div id="scoreGradeVal" style="font-size:14px;font-weight:700;margin-top:4px;">—</div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('scoreModal')">取消</button>
+      <button class="btn btn-primary" onclick="saveScore()">保存评分</button>
+    </div>
+  </div>
+</div>
+
+<!-- ========== 模态框：二次加工 ====== -->
+<div class="modal-overlay" id="processModal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">🔧 二次加工管理</div>
+      <button class="modal-close" onclick="closeModal('processModal')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group full" style="margin-bottom:16px;">
+        <div class="form-label">选择内容</div>
+        <select class="form-select" id="proc-topic-id" onchange="loadProcessData()">
+          <option value="">— 选择选题 —</option>
+        </select>
+      </div>
+      <div id="processFields" style="display:none;">
+        <div class="form-row">
+          <div class="form-group">
+            <div class="form-label">内容角色</div>
+            <select class="form-select" id="proc-role" onchange="toggleParentGroup()">
+              <option value="parent">母内容（原创主内容）</option>
+              <option value="child">适配版本（由母内容派生）</option>
+            </select>
+          </div>
+          <div class="form-group" id="proc-parent-group" style="display:none;">
+            <div class="form-label">关联母内容</div>
+            <select class="form-select" id="proc-parent-id"><option value="">— 选择母内容 —</option></select>
+          </div>
+        </div>
+        <div class="form-group full" style="margin-bottom:16px;">
+          <div class="form-label">加工状态</div>
+          <div style="display:flex;gap:8px;">
+            <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer;"><input type="radio" name="proc-status" value="none" checked style="accent-color:var(--accent);"> 未开始</label>
+            <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer;"><input type="radio" name="proc-status" value="processing" style="accent-color:var(--accent);"> 进行中</label>
+            <label style="display:flex;align-items:center;gap:4px;font-size:13px;cursor:pointer;"><input type="radio" name="proc-status" value="done" style="accent-color:var(--accent);"> 已完成</label>
+          </div>
+        </div>
+        <div class="form-group full" style="margin-bottom:16px;">
+          <div class="form-label">各平台适配进度</div>
+          <div id="procPlatforms"></div>
+        </div>
+        <div class="form-group full">
+          <div class="form-label">加工笔记</div>
+          <textarea class="form-textarea" id="proc-notes" placeholder="记录加工思路、适配要点、改进方向..."></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('processModal')">取消</button>
+      <button class="btn btn-primary" onclick="saveProcess()">保存</button>
     </div>
   </div>
 </div>
